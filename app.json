@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "IMMORTAL-K",
+    "slug": "immortal-k",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/immortal-k-logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/immortal-k-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#050505"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/immortal-k-logo.png",
+        "backgroundColor": "#050505"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kenams.immortalk"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "76d45c0a-9381-45e3-a60f-12ded6768767"
+      }
+    },
+    "plugins": [
+      "expo-camera"
+    ]
+  }
+}
