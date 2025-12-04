@@ -1,13 +1,16 @@
 // src/theme.ts
 
 export const COLORS = {
-  background: "#050505",
-  card: "#0F172A",
+  background: "#03050C",
+  surface: "#0B1020",
+  card: "#141A2D",
   text: "#F8FAFC",
   textMuted: "#94A3B8",
-  border: "rgba(148,163,184,0.3)",
+  border: "rgba(148,163,184,0.25)",
   primary: "#FACC15",
-  accent: "#FB923C",
+  accent: "#FF6B00",
+  success: "#34D399",
+  danger: "#F87171",
 };
 
 export type SportPalette = {
@@ -31,9 +34,44 @@ export const SPORT_PALETTES: Record<string, SportPalette> = {
   basket: {
     background: "#140701",
     card: "#2A1205",
-    border: "#FF9D45",
+    border: "#FFB366",
     accent: "#FF7A18",
     text: "#FFF4E0",
+  },
+  basketball: {
+    background: "#140701",
+    card: "#2A1205",
+    border: "#FFB366",
+    accent: "#FF7A18",
+    text: "#FFF4E0",
+  },
+  swim: {
+    background: "#021428",
+    card: "#05213F",
+    border: "#47C2FF",
+    accent: "#1FB6FF",
+    text: "#E3F7FF",
+  },
+  piscine: {
+    background: "#021428",
+    card: "#05213F",
+    border: "#47C2FF",
+    accent: "#1FB6FF",
+    text: "#E3F7FF",
+  },
+  aquatique: {
+    background: "#021428",
+    card: "#05213F",
+    border: "#47C2FF",
+    accent: "#1FB6FF",
+    text: "#E3F7FF",
+  },
+  swimming: {
+    background: "#021428",
+    card: "#05213F",
+    border: "#47C2FF",
+    accent: "#1FB6FF",
+    text: "#E3F7FF",
   },
   pushups: {
     background: "#111111",
@@ -85,11 +123,67 @@ export const SPORT_PALETTES: Record<string, SportPalette> = {
     text: "#DBEAFE",
   },
   workout: {
-    background: "#1B100F",
-    card: "#2A1513",
-    border: "#F87171",
-    accent: "#EF4444",
+    background: "#0F1014",
+    card: "#1B1C24",
+    border: "#B5B7C3",
+    accent: "#E3E5ED",
+    text: "#F9FAFB",
+  },
+  musculation: {
+    background: "#0F1014",
+    card: "#1B1C24",
+    border: "#B5B7C3",
+    accent: "#E3E5ED",
+    text: "#F9FAFB",
+  },
+  muscu: {
+    background: "#0F1014",
+    card: "#1B1C24",
+    border: "#B5B7C3",
+    accent: "#E3E5ED",
+    text: "#F9FAFB",
+  },
+  fitness: {
+    background: "#12111B",
+    card: "#1E1D27",
+    border: "#A1A6B8",
+    accent: "#D1D5E0",
+    text: "#F7F7FB",
+  },
+  boxe: {
+    background: "#180B0F",
+    card: "#271216",
+    border: "#F47272",
+    accent: "#E11D48",
     text: "#FFE4E6",
+  },
+  mma: {
+    background: "#160A10",
+    card: "#241015",
+    border: "#FB7185",
+    accent: "#F43F5E",
+    text: "#FFE4E6",
+  },
+  yoga: {
+    background: "#0E1418",
+    card: "#182127",
+    border: "#9CECFB",
+    accent: "#8EC5FC",
+    text: "#F1FBFF",
+  },
+  danse: {
+    background: "#170223",
+    card: "#250836",
+    border: "#EB80FF",
+    accent: "#D946EF",
+    text: "#FEECFF",
+  },
+  parkour: {
+    background: "#04110E",
+    card: "#0B1F1A",
+    border: "#34D399",
+    accent: "#10B981",
+    text: "#D1FAE5",
   },
 };
 

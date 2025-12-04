@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
+  ScrollView,
   Button,
   Alert,
   TouchableOpacity,
@@ -14,14 +14,20 @@ import { Video, ResizeMode } from "expo-av";
 
 import ScreenContainer from "../components/ScreenContainer";
 import SportTag from "../components/SportTag";
+import UserAvatar from "../components/UserAvatar";
+import AppButton from "../components/AppButton";
 import { supabase } from "../supabase";
 import { COLORS, getSportPalette } from "../theme";
-import { Challenge, ChallengeResponse, Battle } from "../types";
+import { Challenge, ChallengeResponse, Battle, UserProfile } from "../types";
+import { getSportDomain } from "../utils/sports";
 import {
   feedbackError,
   feedbackSuccess,
   feedbackTap,
 } from "../utils/feedback";
+import { fetchProfilesMap } from "../services/profile";
+import { logEvent } from "../services/telemetry";
+import { getDepartmentLabel } from "../utils/departments";
 
 type Props = {
   route: { params: { challengeId: number } };
@@ -35,7 +41,12 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
   const [responses, setResponses] = useState<ChallengeResponse[]>([]);
   const [battles, setBattles] = useState<Battle[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentUserLevel, setCurrentUserLevel] = useState<number>(1);
+  const [backToBackLoading, setBackToBackLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [profilesMap, setProfilesMap] = useState<Map<string, UserProfile>>(
+    new Map()
+  );
 
   const palette = getSportPalette(challenge?.sport || "");
 
@@ -45,9 +56,20 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
 
       // session
       const { data: ses } = await supabase.auth.getSession();
-      setCurrentUserId(ses.session ? ses.session.user.id : null);
+      const authUserId = ses.session ? ses.session.user.id : null;
+      setCurrentUserId(authUserId);
+      if (authUserId) {
+        const { data: statsRow } = await supabase
+          .from("players_stats")
+          .select("level")
+          .eq("user_id", authUserId)
+          .maybeSingle();
+        setCurrentUserLevel((statsRow as any)?.level || 1);
+      } else {
+        setCurrentUserLevel(1);
+      }
 
-      // défi
+      // defi
       const { data: chData, error: chError } = await supabase
         .from("challenges")
         .select("*")
@@ -57,11 +79,16 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
       if (chError) {
         console.log("CHALLENGE DETAIL ERROR", chError);
         setChallenge(null);
-      } else if (chData) {
-        setChallenge(chData as Challenge);
       }
 
-      // réponses
+      let loadedChallenge: Challenge | null = null;
+
+      if (chData) {
+        loadedChallenge = chData as Challenge;
+        setChallenge(loadedChallenge);
+      }
+
+      // reponses
       const { data: respData, error: respError } = await supabase
         .from("challenge_responses")
         .select("*")
@@ -74,8 +101,9 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
       } else if (respData) {
         setResponses(respData as ChallengeResponse[]);
       }
+      const loadedResponses = (respData as ChallengeResponse[]) || [];
 
-      // battles liées
+      // battles liees
       const { data: battlesData, error: battlesError } = await supabase
         .from("battles")
         .select("*")
@@ -87,8 +115,18 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
       } else if (battlesData) {
         setBattles(battlesData as Battle[]);
       }
+
+      const userIds: string[] = [];
+      if (loadedChallenge) {
+        userIds.push(loadedChallenge.user_id);
+      }
+      loadedResponses.forEach((resp) => userIds.push(resp.user_id));
+
+      const profileMap = await fetchProfilesMap(userIds);
+      setProfilesMap(profileMap);
     } catch (e) {
       console.log("DETAIL LOAD EXCEPTION", e);
+      setProfilesMap(new Map());
     } finally {
       setLoading(false);
     }
@@ -105,18 +143,41 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
     if (!challenge) return;
     try {
       feedbackTap();
-      const message = `🔥 Défi sur ${challenge.sport}
-
-Titre : ${challenge.title}
-Description : ${challenge.description}
-Objectif : ${challenge.target_value} ${challenge.unit}
-
-Application Sport Challenge – viens me défier en vidéo.`;
+      const message = [
+        ` Fight ${challenge.sport} en cours`,
+        "",
+        `Titre : ${challenge.title}`,
+        `Description : ${challenge.description}`,
+        `Objectif : ${challenge.target_value} ${challenge.unit}`,
+        "",
+        "IMMORTAL-K - viens te mesurer en vidéo, pas de blabla.",
+      ].join("\n");
 
       await Share.share({ message });
     } catch (e) {
       console.log("DETAIL SHARE ERROR", e);
     }
+  };
+
+  const handleOpenArenaLive = () => {
+    if (!challenge) return;
+    if (liveLocked) {
+      Alert.alert(
+        "Niveau insuffisant",
+        `Mode Arena Live disponible a partir du niveau ${LIVE_MIN_LEVEL}.`
+      );
+      return;
+    }
+    navigation.navigate("ArenaLive", { challengeId: challenge.id });
+  };
+
+  const handleOpenArenaSimulation = () => {
+    if (!challenge) return;
+    navigation.navigate("ArenaLive", {
+      challengeId: challenge.id,
+      mode: "simulation",
+      role: "host",
+    });
   };
 
   const handleChooseWinner = async (response: ChallengeResponse) => {
@@ -127,12 +188,19 @@ Application Sport Challenge – viens me défier en vidéo.`;
     try {
       feedbackTap();
 
-      // trouver une battle existante entre créateur et ce challenger
+      const ownerProfileCached = profilesMap.get(challenge.user_id);
+      const responderProfile = profilesMap.get(response.user_id);
+      const responderName =
+        responderProfile?.pseudo ||
+        response.pseudo ||
+        `Joueur ${response.user_id.slice(0, 8)}`;
+
+      // trouver une battle existante entre createur et ce challenger
       let battle = battles.find(
         (b) => b.player2_id === response.user_id && !b.completed
       );
 
-      // si pas de battle → en créer une si pari
+      // si pas de battle -> en creer une si pari
       const isBet =
         !!(challenge as any).bet_enabled &&
         ((challenge as any).bet_amount || 0) > 0;
@@ -158,7 +226,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
           feedbackError();
           Alert.alert(
             "Erreur",
-            "Impossible de créer une battle pour ce défi."
+            "Impossible de creer une battle pour ce defi."
           );
           return;
         }
@@ -166,7 +234,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
         battle = newBattle as Battle;
       }
 
-      // mettre à jour la battle avec gagnant/perdant
+      // mettre a jour la battle avec gagnant/perdant
       const { error: updError } = await supabase
         .from("battles")
         .update({
@@ -179,11 +247,11 @@ Application Sport Challenge – viens me défier en vidéo.`;
       if (updError) {
         console.log("UPDATE BATTLE ERROR", updError);
         feedbackError();
-        Alert.alert("Erreur", "Impossible d’enregistrer le gagnant.");
+        Alert.alert("Erreur", "Impossible d'enregistrer le gagnant.");
         return;
       }
 
-      // si pari → distribuer les coins au gagnant
+      // si pari -> distribuer les coins au gagnant
       if (isBet) {
         const effectiveTotal =
           battle.amount && battle.amount > 0 ? battle.amount : totalAmount;
@@ -229,7 +297,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
         }
       }
 
-      // punition du créateur (perdant)
+      // punition du createur (perdant)
       const { error: punishError } = await supabase.from("punishments").insert({
         user_id: challenge.user_id,
         battle_id: battle.id,
@@ -240,7 +308,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
         console.log("PUNISHMENT INSERT ERROR", punishError);
       }
 
-      // activité "battle_finished"
+      // activite "battle_finished"
       const { data: ses } = await supabase.auth.getSession();
       const pseudoActivity =
         ses.session?.user.user_metadata?.pseudo ||
@@ -252,11 +320,44 @@ Application Sport Challenge – viens me défier en vidéo.`;
         pseudo: pseudoActivity,
         type: "battle_finished",
         challenge_id: challengeId,
-        message: `${pseudoActivity} a déclaré un gagnant sur ce défi`,
+        message: `${pseudoActivity} a declare un gagnant sur ce defi`,
+      });
+      const { data: ownerProfile } = await supabase
+        .from("profiles")
+        .select("user_id,pseudo")
+        .eq("user_id", challenge.user_id)
+        .maybeSingle();
+      const ownerPseudo =
+        (ownerProfile as any)?.pseudo ||
+        `Joueur ${challenge.user_id.slice(0, 4)}`;
+      await supabase.from("coach_notifications").insert({
+        user_id: challenge.user_id,
+        title: "Tu as été défié",
+        body: `${ownerPseudo}, ${responderName} prend l'avantage. Reviens défendre ton titre !`,
+        type: "rematch",
       });
 
+      const ownerDept = ownerProfileCached?.department;
+      const challengerDept = responderProfile?.department;
+      if (ownerDept && challengerDept && ownerDept !== challengerDept) {
+        const ownerDeptLabel = getDepartmentLabel(ownerDept) || ownerDept;
+        const challengerDeptLabel =
+          getDepartmentLabel(challengerDept) || challengerDept;
+        await supabase.from("coach_notifications").insert({
+          user_id: challenge.user_id,
+          title: `${challengerDeptLabel} prend le toit`,
+          body: `${challengerDeptLabel} passe devant sur ${challenge.title}. Défends ${ownerDeptLabel} et récupère ton rang.`,
+          type: "dept_rivalry",
+        });
+        await logEvent("rivalite_perdue", {
+          challenge_id: challenge.id,
+          owner_dept: ownerDept,
+          challenger_dept: challengerDept,
+        });
+      }
+
       feedbackSuccess();
-      Alert.alert("Gagnant défini", "Le gagnant a été enregistré.");
+      Alert.alert("Gagnant defini", "Le gagnant a ete enregistre.");
       await loadData();
     } catch (e: any) {
       console.log("CHOOSE WINNER ERROR", e);
@@ -270,7 +371,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
 
     if (!currentUserId) {
       feedbackError();
-      Alert.alert("Connexion requise", "Tu dois être connecté.");
+      Alert.alert("Connexion requise", "Tu dois etre connecte.");
       return;
     }
 
@@ -278,12 +379,12 @@ Application Sport Challenge – viens me défier en vidéo.`;
       feedbackError();
       Alert.alert(
         "Impossible",
-        "Tu ne peux pas répondre à ton propre défi."
+        "Tu ne peux pas repondre a ton propre defi."
       );
       return;
     }
 
-    // vérifier s'il y a une punition active sur ce user
+    // verifier s'il y a une punition active sur ce user
     const { data: punishment } = await supabase
       .from("punishments")
       .select("*")
@@ -304,10 +405,91 @@ Application Sport Challenge – viens me défier en vidéo.`;
     navigation.navigate("RespondChallenge", { challengeId });
   };
 
+  const handleBackToBack = async () => {
+    if (!challenge || !isOwner || backToBackLoading) return;
+    try {
+      setBackToBackLoading(true);
+      feedbackTap();
+      const roundSuffix = /Round\s+\d+/i.test(challenge.title)
+        ? challenge.title.replace(/Round\s+(\d+)/i, (match, p1) => {
+            const next = Number(p1) + 1;
+            return `Round ${next}`;
+          })
+        : `${challenge.title} - Round 2`;
+
+      const baseBet = (challenge as any).bet_amount || 0;
+      const boostedBet = baseBet > 0 ? Math.min(baseBet + 5, baseBet * 2 || 20) : 0;
+      const payload: any = {
+        user_id: challenge.user_id,
+        title: roundSuffix,
+        description: `${challenge.description}\nRound supplémentaire pour défendre ton titre.`,
+        sport: challenge.sport,
+        target_value: challenge.target_value,
+        unit: challenge.unit,
+        video_url: challenge.video_url,
+        bet_enabled: challenge.bet_enabled,
+        bet_amount: challenge.bet_enabled ? boostedBet : 0,
+        min_level: (challenge.min_level || challenge.level_required || 1) + 1,
+      };
+
+      if (Object.prototype.hasOwnProperty.call(challenge, "level_required")) {
+        payload.level_required =
+          (challenge.level_required || challenge.min_level || 1) + 1;
+      }
+
+      const { data: inserted, error } = await supabase
+        .from("challenges")
+        .insert(payload)
+        .select("*")
+        .single();
+      if (error || !inserted) {
+        throw error || new Error("Création impossible");
+      }
+
+      await supabase.from("activities").insert({
+        user_id: challenge.user_id,
+        type: "challenge_created",
+        challenge_id: inserted.id,
+        message: `${ownerName} lance un Round 2 (${inserted.title}).`,
+      });
+
+      Alert.alert(
+        "Round 2 prêt",
+        "Ton défi back-to-back est en ligne. Enflamme encore le classement !",
+        [
+          {
+            text: "Voir le nouveau défi",
+            onPress: () =>
+              navigation.replace("ChallengeDetail", {
+                challengeId: inserted.id,
+              }),
+          },
+          {
+            text: "OK",
+            style: "cancel",
+          },
+        ]
+      );
+    } catch (err: any) {
+      console.log("BACK TO BACK ERROR", err);
+      Alert.alert(
+        "Impossible",
+        err?.message || "La revanche instantanée a échoué."
+      );
+    } finally {
+      setBackToBackLoading(false);
+    }
+  };
+
   const renderResponseItem = ({ item }: { item: ChallengeResponse }) => {
     const battle = battles.find((b) => b.player2_id === item.user_id);
     const isWinner = battle?.winner_id === item.user_id;
     const isCompleted = !!battle?.completed;
+    const profile = profilesMap.get(item.user_id);
+    const responderName =
+      profile?.pseudo ||
+      item.pseudo ||
+      `Joueur ${item.user_id.slice(0, 6)}...${item.user_id.slice(-4)}`;
 
     return (
       <View
@@ -320,25 +502,94 @@ Application Sport Challenge – viens me défier en vidéo.`;
           backgroundColor: palette.card,
         }}
       >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 12,
+          }}
+        >
+          <UserAvatar
+            uri={profile?.avatar_url || item.avatar_url || undefined}
+            label={responderName}
+            size={44}
+          />
+          <View style={{ marginLeft: 10, flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 14,
+                fontWeight: "700",
+                color: palette.text,
+              }}
+            >
+              {responderName}
+            </Text>
+            <Text
+              style={{
+                fontSize: 11,
+                color: COLORS.textMuted,
+              }}
+            >
+              Challenger
+            </Text>
+          </View>
+      </View>
+
+      <View
+        style={{
+          borderWidth: 1,
+          borderColor: COLORS.border,
+          borderRadius: 18,
+          padding: 16,
+          marginBottom: 18,
+          backgroundColor: COLORS.surface,
+        }}
+      >
         <Text
           style={{
-            fontSize: 14,
-            fontWeight: "700",
-            color: palette.text,
+            fontSize: 16,
+            fontWeight: "900",
+            color: COLORS.text,
             marginBottom: 4,
           }}
         >
-          Réponse d’un challenger
+          Arena Live
         </Text>
-        <Text
+        <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 10 }}>
+          Pyramide push-up IMPITOYABLE avec mise et camera live.
+        </Text>
+        <View
           style={{
-            fontSize: 11,
-            color: COLORS.textMuted,
-            marginBottom: 8,
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 12,
           }}
         >
-          Joueur : {item.user_id.slice(0, 8)}…
-        </Text>
+          <Text style={{ color: COLORS.text, fontSize: 13 }}>
+            Niveau requis : {LIVE_MIN_LEVEL}
+          </Text>
+          <Text
+            style={{
+              color: liveLocked ? COLORS.danger : COLORS.success,
+              fontSize: 13,
+              fontWeight: "700",
+            }}
+          >
+            {liveLocked ? `Niveau actuel ${currentUserLevel}` : "Pret"}
+          </Text>
+        </View>
+        <AppButton
+          label="Ouvrir Arena Live"
+          onPress={handleOpenArenaLive}
+          disabled={liveLocked}
+        />
+        <AppButton
+          label="Simuler le mode (demo)"
+          variant="ghost"
+          onPress={handleOpenArenaSimulation}
+          style={{ marginTop: 12 }}
+        />
+      </View>
 
         <Video
           source={{ uri: item.video_url }}
@@ -352,7 +603,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
             <Text
               style={{ fontSize: 13, fontWeight: "800", color: palette.accent }}
             >
-              🏆 Gagnant de la battle
+              CC Gagnant de la battle
             </Text>
           ) : isCompleted ? (
             <Text
@@ -362,11 +613,11 @@ Application Sport Challenge – viens me défier en vidéo.`;
                 color: COLORS.textMuted,
               }}
             >
-              Battle terminée (un autre gagnant a été choisi)
+              Battle termin...e (un autre gagnant a ...t... choisi)
             </Text>
           ) : (
             <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
-              En attente de décision…
+              En attente de d...cision...
             </Text>
           )}
         </View>
@@ -374,7 +625,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
         {isOwner && !isCompleted && (
           <View style={{ marginTop: 10 }}>
             <Button
-              title="Déclarer gagnant"
+              title="D...clarer gagnant"
               onPress={() => handleChooseWinner(item)}
             />
           </View>
@@ -401,7 +652,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
-          <Text style={{ color: palette.text }}>Défi introuvable</Text>
+          <Text style={{ color: palette.text }}>Defi introuvable</Text>
         </View>
       </ScreenContainer>
     );
@@ -410,11 +661,26 @@ Application Sport Challenge – viens me défier en vidéo.`;
   const isBet =
     !!(challenge as any).bet_enabled &&
     ((challenge as any).bet_amount || 0) > 0;
+  const ownerProfile = challenge
+    ? profilesMap.get(challenge.user_id)
+    : undefined;
+  const ownerName =
+    ownerProfile?.pseudo ||
+    challenge.pseudo ||
+    `Joueur ${challenge.user_id.slice(0, 4)}...${challenge.user_id.slice(-4)}`;
+  const challengeDomain = getSportDomain(challenge.sport);
+  const domainPalette = getSportPalette(challengeDomain.paletteKey);
+  const LIVE_MIN_LEVEL = 5;
+  const liveLocked = currentUserLevel < LIVE_MIN_LEVEL;
 
   return (
     <ScreenContainer backgroundColor={palette.background}>
-      <View style={{ flex: 1 }}>
-        {/* En-tête défi + bouton partager */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* En-tete defi + bouton partager */}
         <View
           style={{
             borderWidth: 1,
@@ -444,6 +710,69 @@ Application Sport Challenge – viens me défier en vidéo.`;
               {challenge.title}
             </Text>
             <SportTag sport={challenge.sport} />
+          </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+          <UserAvatar
+            uri={ownerProfile?.avatar_url || challenge.avatar_url || undefined}
+            label={ownerName}
+            size={52}
+          />
+            <View style={{ marginLeft: 12, flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 15,
+                  fontWeight: "700",
+                  color: palette.text,
+                }}
+              >
+                {ownerName}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  color: COLORS.textMuted,
+                }}
+              >
+                Createur du defi
+              </Text>
+            </View>
+          </View>
+
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: domainPalette.border,
+              backgroundColor: domainPalette.background,
+              borderRadius: 14,
+              padding: 12,
+              marginBottom: 12,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "800",
+                color: domainPalette.accent,
+              }}
+            >
+              {challengeDomain.label}
+            </Text>
+            <Text
+              style={{
+                fontSize: 11,
+                color: domainPalette.text,
+                marginTop: 4,
+              }}
+            >
+              {challengeDomain.tagline}
+            </Text>
           </View>
 
           <Text
@@ -507,7 +836,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
                   marginBottom: 2,
                 }}
               >
-                💰 Défi classé
+                 Defi classe
               </Text>
               <Text
                 style={{
@@ -525,6 +854,8 @@ Application Sport Challenge – viens me défier en vidéo.`;
               marginTop: 12,
               flexDirection: "row",
               justifyContent: "flex-end",
+              gap: 10,
+              flexWrap: "wrap",
             }}
           >
             <TouchableOpacity
@@ -545,13 +876,71 @@ Application Sport Challenge – viens me défier en vidéo.`;
                   color: COLORS.primary,
                 }}
               >
-                📤 Partager ce défi
+                Partager ce defi
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleOpenArenaLive}
+              disabled={liveLocked}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: liveLocked ? COLORS.border : domainPalette.accent,
+                backgroundColor: liveLocked
+                  ? "transparent"
+                  : domainPalette.background,
+                opacity: liveLocked ? 0.6 : 1,
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: 12,
+                  fontWeight: "700",
+                  color: liveLocked ? COLORS.textMuted : domainPalette.accent,
+                }}
+              >
+                Arena Live
               </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Vidéo du créateur */}
+        {isOwner && (
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: COLORS.border,
+              borderRadius: 18,
+              padding: 16,
+              marginBottom: 18,
+              backgroundColor: COLORS.surface,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 16,
+                fontWeight: "800",
+                color: COLORS.text,
+                marginBottom: 4,
+              }}
+            >
+              Champion ? Lance un back-to-back
+            </Text>
+            <Text style={{ color: COLORS.textMuted, fontSize: 12, marginBottom: 12 }}>
+              Défends ton titre avec un Round 2 boosté (niveau +1, mise relevée)
+              pour attirer encore plus de challengers.
+            </Text>
+            <AppButton
+              label="Lancer Round 2"
+              onPress={handleBackToBack}
+              loading={backToBackLoading}
+            />
+          </View>
+        )}
+
+        {/* Video du createur */}
         <Text
           style={{
             fontSize: 14,
@@ -560,7 +949,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
             marginBottom: 8,
           }}
         >
-          Vidéo du créateur
+          Video du createur
         </Text>
 
         <View
@@ -581,7 +970,7 @@ Application Sport Challenge – viens me défier en vidéo.`;
           />
         </View>
 
-        {/* Bouton répondre */}
+        {/* Bouton repondre */}
         {!isOwner && (
           <View style={{ marginBottom: 18 }}>
             <TouchableOpacity
@@ -600,13 +989,13 @@ Application Sport Challenge – viens me défier en vidéo.`;
                   color: "#050505",
                 }}
               >
-                Répondre à ce défi ⚡
+                Repondre a ce defi
               </Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Liste des réponses */}
+        {/* Liste des reponses */}
         <Text
           style={{
             fontSize: 16,
@@ -615,22 +1004,21 @@ Application Sport Challenge – viens me défier en vidéo.`;
             marginBottom: 10,
           }}
         >
-          Réponses au défi
+          Reponses au defi
         </Text>
 
         {responses.length === 0 ? (
           <Text style={{ fontSize: 13, color: COLORS.textMuted }}>
-            Personne n’a encore répondu à ce défi.
+            Personne n'a encore repondu a ce defi.
           </Text>
         ) : (
-          <FlatList
-            data={responses}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={renderResponseItem}
-            contentContainerStyle={{ paddingBottom: 40 }}
-          />
+          responses.map((item) => (
+            <React.Fragment key={item.id}>
+              {renderResponseItem({ item })}
+            </React.Fragment>
+          ))
         )}
-      </View>
+      </ScrollView>
     </ScreenContainer>
   );
 }

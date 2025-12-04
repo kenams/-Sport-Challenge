@@ -19,23 +19,25 @@ import { supabase } from "../supabase";
 import { COLORS } from "../theme";
 import { feedbackError, feedbackSuccess, feedbackTap } from "../utils/feedback";
 
-type Props = {
-  navigation: any;
-};
-
 type WalletRow = {
   user_id: string;
   coins: number;
 };
 
-export default function CreateChallengeScreen({ navigation }: Props) {
-  const [title, setTitle] = useState("");
+export default function CreateChallengeScreen({ navigation, route }: any) {
+  const rematchSport = route?.params?.rematchSport || "";
+  const rematchTitle = route?.params?.rematchTitle || "";
+  const rematchBet = route?.params?.rematchBet || 0;
+
+  const [title, setTitle] = useState(rematchTitle);
   const [description, setDescription] = useState("");
-  const [sport, setSport] = useState("");
+  const [sport, setSport] = useState(rematchSport);
   const [targetValue, setTargetValue] = useState("");
   const [unit, setUnit] = useState("");
-  const [betEnabled, setBetEnabled] = useState(false);
-  const [betAmount, setBetAmount] = useState("");
+  const [betEnabled, setBetEnabled] = useState(rematchBet > 0);
+  const [betAmount, setBetAmount] = useState(
+    rematchBet ? rematchBet.toString() : ""
+  );
   const [minLevel, setMinLevel] = useState("1");
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -92,6 +94,24 @@ export default function CreateChallengeScreen({ navigation }: Props) {
       if (!user) {
         feedbackError();
         Alert.alert("Connexion requise", "Connecte toi pour creer un defi.");
+        setSubmitting(false);
+        return;
+      }
+
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        .toISOString()
+        .slice(0, 19);
+      const { count: challengeCount } = await supabase
+        .from("challenges")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", twentyFourHoursAgo);
+      if ((challengeCount || 0) >= 5) {
+        feedbackError();
+        Alert.alert(
+          "Trop de defis",
+          "Tu as deja publie 5 defis ces dernieres 24h. Reviens un peu plus tard."
+        );
         setSubmitting(false);
         return;
       }

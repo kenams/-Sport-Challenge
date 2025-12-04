@@ -1,7 +1,10 @@
-// src/types.ts
+export type GenderValue = "male" | "female" | "other";
+
 export interface Challenge {
   id: number;
   user_id: string;
+  pseudo?: string | null;
+  avatar_url?: string | null;
   title: string;
   description: string;
   sport: string;
@@ -20,6 +23,8 @@ export interface ChallengeResponse {
   id: number;
   challenge_id: number;
   user_id: string;
+  pseudo?: string | null;
+  avatar_url?: string | null;
   video_url: string;
   created_at: string;
   votes?: number;
@@ -35,7 +40,7 @@ export interface PlayerStats {
   user_id: string;
   level: number;
   points: number;
-  title?: string; // < 🔥 ajouté ici
+  title?: string;
 }
 
 export interface Battle {
@@ -49,4 +54,14 @@ export interface Battle {
   loser_id?: string;
   completed?: boolean;
   created_at?: string;
+}
+
+export interface UserProfile {
+  user_id: string;
+  pseudo?: string | null;
+  avatar_url?: string | null;
+  gender?: GenderValue | null;
+  allow_mixed?: boolean | null;
+  department?: string | null;
+  allow_inter_department?: boolean | null;
 }

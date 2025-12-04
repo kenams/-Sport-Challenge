@@ -7,10 +7,25 @@ import {
   Button,
   Alert,
   ScrollView,
+  StyleSheet,
+  Switch,
+  TouchableOpacity,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
+import UserAvatar from "../components/UserAvatar";
 import { supabase } from "../supabase";
 import { COLORS } from "../theme";
+import { ARENA_FAIR_PLAY_THRESHOLD } from "../services/arenaLive";
+import { getFairPlayTier } from "../utils/fairPlay";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import AppButton from "../components/AppButton";
+import HeatBadge from "../components/HeatBadge";
+import { GenderValue } from "../types";
+import {
+  COMPETING_TERRITORIES,
+  getDepartmentLabel,
+  getDepartmentShortLabel,
+} from "../utils/departments";
 
 type WalletRow = {
   user_id: string;
@@ -40,18 +55,33 @@ type Achievement = {
   unlocked: boolean;
 };
 
+const genderChoices: { value: GenderValue; label: string; helper: string }[] = [
+  { value: "male", label: "Homme", helper: "Courbe standard" },
+  { value: "female", label: "Femme", helper: "Courbe adaptée" },
+  { value: "other", label: "Libre", helper: "Mix & match" },
+];
+
 export default function ProfileScreen() {
+  const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(true);
   const [pseudo, setPseudo] = useState<string>("");
   const [userId, setUserId] = useState<string | null>(null);
+  const [fairPlayScore, setFairPlayScore] = useState(100);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [gender, setGender] = useState<GenderValue>("male");
+  const [allowMixed, setAllowMixed] = useState(true);
+  const [allowInterDept, setAllowInterDept] = useState(true);
+  const [department, setDepartment] = useState("75");
 
   const [coins, setCoins] = useState(0);
   const [points, setPoints] = useState(0);
   const [level, setLevel] = useState(1);
   const [title, setTitle] = useState("Rookie");
+  const [dailyStreak, setDailyStreak] = useState(0);
 
   const [activePunishments, setActivePunishments] = useState(0);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -62,12 +92,17 @@ export default function ProfileScreen() {
       if (!user) {
         setUserId(null);
         setPseudo("");
+        setAvatarUrl(null);
         setCoins(0);
         setPoints(0);
         setLevel(1);
         setTitle("Rookie");
         setActivePunishments(0);
         setActivities([]);
+        setGender("male");
+        setAllowMixed(true);
+        setAllowInterDept(true);
+        setDepartment("75");
         return;
       }
 
@@ -75,6 +110,24 @@ export default function ProfileScreen() {
       const metaPseudo =
         user.user_metadata?.pseudo || user.email || "Joueur";
       setPseudo(metaPseudo);
+      setAvatarUrl(user.user_metadata?.avatar_url || null);
+      const metaGender = (user.user_metadata?.gender as GenderValue) || "male";
+      const allowMixedPref =
+        typeof user.user_metadata?.allowMixed === "boolean"
+          ? (user.user_metadata?.allowMixed as boolean)
+          : true;
+      const allowInterDeptPref =
+        typeof user.user_metadata?.allowInterDept === "boolean"
+          ? (user.user_metadata?.allowInterDept as boolean)
+          : true;
+      const userDepartment =
+        typeof user.user_metadata?.department === "string"
+          ? (user.user_metadata?.department as string)
+          : "75";
+      setGender(metaGender);
+      setAllowMixed(allowMixedPref);
+      setAllowInterDept(allowInterDeptPref);
+      setDepartment(userDepartment);
 
       // Wallet
       const { data: wallet } = await supabase
@@ -90,6 +143,13 @@ export default function ProfileScreen() {
         setCoins(0);
       }
 
+      const { data: dailyRow } = await supabase
+        .from("daily_rewards")
+        .select("streak")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      setDailyStreak(((dailyRow as any)?.streak as number) || 0);
+
       // Stats joueur
       const { data: stats } = await supabase
         .from("players_stats")
@@ -102,10 +162,16 @@ export default function ProfileScreen() {
         setPoints(s.points || 0);
         setLevel(s.level || 1);
         setTitle(s.title || "Rookie");
+        setFairPlayScore(
+          typeof (s as any).fair_play_score === "number"
+            ? (s as any).fair_play_score
+            : 100
+        );
       } else {
         setPoints(0);
         setLevel(1);
         setTitle("Rookie");
+        setFairPlayScore(100);
       }
 
       // Punitions actives
@@ -145,11 +211,63 @@ export default function ProfileScreen() {
     loadData();
   }, [loadData]);
 
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
     } catch (e: any) {
       Alert.alert("Erreur", e.message || "Impossible de se déconnecter.");
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    if (!userId) return;
+    try {
+      setPreferencesSaving(true);
+      const { data: ses } = await supabase.auth.getSession();
+      const user = ses.session?.user;
+      if (!user) {
+        Alert.alert("Non connect?", "Reconnecte-toi pour mettre ton profil ? jour.");
+        return;
+      }
+
+      await supabase.auth.updateUser({
+        data: {
+          ...user.user_metadata,
+          pseudo,
+          gender,
+          allowMixed,
+          allowInterDept,
+          department,
+        },
+      });
+
+      try {
+        await supabase.from("profiles").upsert(
+          {
+            user_id: user.id,
+            pseudo,
+            gender,
+            allow_mixed: allowMixed,
+            allow_inter_department: allowInterDept,
+            department,
+          },
+          { onConflict: "user_id" }
+        );
+      } catch (profileErr) {
+        console.log("PROFILE PREF UPSERT ERROR", profileErr);
+      }
+
+      Alert.alert("Pr?f?rences mises ? jour");
+    } catch (err: any) {
+      Alert.alert("Erreur", err.message || "Impossible de mettre ? jour.");
+    } finally {
+      setPreferencesSaving(false);
     }
   };
 
@@ -251,6 +369,7 @@ export default function ProfileScreen() {
   const { progress, remaining, next } = computeNextLevelInfo();
   const progressPercent = Math.round(progress * 100);
   const achievements = computeAchievements();
+  const heatScore = activities.filter((a) => a.type === "heat_share").length;
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
 
   if (loading) {
@@ -297,6 +416,9 @@ export default function ProfileScreen() {
     );
   }
 
+  const fairPlayTier = getFairPlayTier(fairPlayScore);
+  const isArenaLocked = fairPlayScore < ARENA_FAIR_PLAY_THRESHOLD;
+
   return (
     <ScreenContainer>
       <ScrollView
@@ -304,26 +426,23 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* HEADER IDENTITE */}
-        <View
-          style={{
-            marginBottom: 18,
-            padding: 14,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            backgroundColor: "#020617",
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 22,
-              fontWeight: "900",
-              color: COLORS.text,
-              marginBottom: 4,
-            }}
-          >
-            {pseudo}
-          </Text>
+        <View style={styles.identityCard}>
+          <UserAvatar
+            uri={avatarUrl || undefined}
+            label={pseudo || "Joueur"}
+            size={64}
+          />
+          <View style={{ marginLeft: 16, flex: 1 }}>
+            <Text
+              style={{
+                fontSize: 22,
+                fontWeight: "900",
+                color: COLORS.text,
+                marginBottom: 4,
+              }}
+            >
+              {pseudo}
+            </Text>
           <Text
             style={{
               fontSize: 14,
@@ -331,29 +450,281 @@ export default function ProfileScreen() {
               marginBottom: 4,
             }}
           >
-            {title} • Niveau {level}
+            {title} - Niveau {level}
           </Text>
           <Text
             style={{
-              fontSize: 14,
-              color: COLORS.primary,
+              fontSize: 12,
+              color: COLORS.textMuted,
+              marginBottom: 4,
             }}
           >
-            ID : {userId.slice(0, 4)}…{userId.slice(-4)}
+            Territoire : {getDepartmentLabel(department) || department}
           </Text>
+          <Text
+            style={{
+              fontSize: 13,
+              color: COLORS.textMuted,
+              marginBottom: 4,
+            }}
+          >
+            Fair-play : {fairPlayScore}/100
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: fairPlayTier.color,
+              marginBottom: 4,
+            }}
+          >
+            Tier : {fairPlayTier.label}
+          </Text>
+          {isArenaLocked && (
+            <Text
+              style={{
+                fontSize: 12,
+                color: "#f87171",
+              }}
+            >
+              Arena verrouillée tant que tu restes sous {ARENA_FAIR_PLAY_THRESHOLD}.
+            </Text>
+          )}
+            <Text
+              style={{
+                fontSize: 14,
+                color: COLORS.primary,
+              }}
+            >
+              ID : {userId.slice(0, 4)}...{userId.slice(-4)}
+            </Text>
+            {heatScore > 0 && <HeatBadge heat={heatScore} />}
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "800",
+              color: COLORS.text,
+              marginBottom: 6,
+            }}
+          >
+            Profil de performance
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: COLORS.textMuted,
+              marginBottom: 10,
+            }}
+          >
+            On calibre les recommandations selon ta courbe. Tu peux quand
+            même basculer en mode mixte.
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              gap: 10,
+              marginBottom: 12,
+            }}
+          >
+            {genderChoices.map((choice) => {
+              const active = gender === choice.value;
+              return (
+                <TouchableOpacity
+                  key={choice.value}
+                  onPress={() => setGender(choice.value)}
+                  activeOpacity={0.85}
+                  style={{
+                    flex: 1,
+                    minWidth: 90,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: active ? COLORS.primary : COLORS.border,
+                    backgroundColor: active ? COLORS.primary : COLORS.card,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                  }}
+                >
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: active ? "#050505" : COLORS.textMuted,
+                      fontWeight: "700",
+                    }}
+                  >
+                    {choice.label}
+                  </Text>
+                  <Text
+                    style={{
+                      textAlign: "center",
+                      color: active ? "#050505" : COLORS.textMuted,
+                      fontSize: 11,
+                    }}
+                  >
+                    {choice.helper}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: COLORS.text,
+                marginBottom: 6,
+              }}
+            >
+              Choisis ton camp (IDF ou Tarn-et-Garonne)
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                alignItems: "flex-start",
+                marginBottom: 12,
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: COLORS.text, fontWeight: "700", marginBottom: 6 }}>
+                  Île-de-France
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {COMPETING_TERRITORIES.filter((dep) =>
+                    dep.code.startsWith("7")
+                  ).map((dep) => {
+                    const selected = department === dep.code;
+                    return (
+                      <TouchableOpacity
+                        key={dep.code}
+                        onPress={() => setDepartment(dep.code)}
+                        style={{
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: selected ? COLORS.primary : COLORS.border,
+                          backgroundColor: selected ? COLORS.primary : COLORS.card,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? "#050505" : COLORS.textMuted,
+                            fontWeight: "800",
+                          }}
+                        >
+                          {dep.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: COLORS.text, fontWeight: "700", marginBottom: 6 }}>
+                  Tarn-et-Garonne
+                </Text>
+                <View style={{ gap: 8 }}>
+                  {COMPETING_TERRITORIES.filter((dep) =>
+                    dep.code.startsWith("82")
+                  ).map((dep) => {
+                    const selected = department === dep.code;
+                    return (
+                      <TouchableOpacity
+                        key={dep.code}
+                        onPress={() => setDepartment(dep.code)}
+                        style={{
+                          borderRadius: 10,
+                          borderWidth: 1,
+                          borderColor: selected ? COLORS.primary : COLORS.border,
+                          backgroundColor: selected ? COLORS.primary : COLORS.card,
+                          paddingHorizontal: 10,
+                          paddingVertical: 8,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: selected ? "#050505" : COLORS.textMuted,
+                            fontWeight: "800",
+                          }}
+                        >
+                          {dep.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: COLORS.text,
+              }}
+            >
+              Mode mixte activé
+            </Text>
+            <Switch value={allowMixed} onValueChange={setAllowMixed} />
+          </View>
+          <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 10 }}>
+            Désactive si tu veux rester dans ta ligue jusqu'à être prête à te
+            mesurer à tout le monde.
+          </Text>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 6,
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: "700",
+                color: COLORS.text,
+              }}
+            >
+              Duels inter-territoires
+            </Text>
+            <Switch
+              value={allowInterDept}
+              onValueChange={setAllowInterDept}
+            />
+          </View>
+          <Text
+            style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 10 }}
+          >
+            Quand c'est désactivé, on te propose prioritairement ton
+            territoire. Tu peux toujours ouvrir un défi adverse manuellement.
+          </Text>
+          <AppButton
+            label={
+              preferencesSaving
+                ? "Sauvegarde..."
+                : "Mettre à jour mes préférences"
+            }
+            onPress={handleSavePreferences}
+            loading={preferencesSaving}
+          />
         </View>
 
         {/* STATS & PROGRESSION */}
-        <View
-          style={{
-            marginBottom: 18,
-            padding: 14,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            backgroundColor: "#020617",
-          }}
-        >
+        <View style={styles.card}>
           <Text
             style={{
               fontSize: 16,
@@ -362,7 +733,7 @@ export default function ProfileScreen() {
               marginBottom: 8,
             }}
           >
-            Progression
+            Montée en puissance
           </Text>
 
           <Text
@@ -406,16 +777,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* COINS & PUNITIONS */}
-        <View
-          style={{
-            marginBottom: 18,
-            padding: 14,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            backgroundColor: "#020617",
-          }}
-        >
+        <View style={styles.card}>
           <Text
             style={{
               fontSize: 16,
@@ -424,7 +786,7 @@ export default function ProfileScreen() {
               marginBottom: 8,
             }}
           >
-            Statut de jeu
+            Etat du coffre
           </Text>
 
           <Text
@@ -448,30 +810,60 @@ export default function ProfileScreen() {
           </Text>
 
           {activePunishments > 0 && (
-            <Text
-              style={{
-                fontSize: 12,
-                color: COLORS.textMuted,
-                marginTop: 4,
-              }}
-            >
-              Tu dois finir tes punitions (pubs) avant de pouvoir rejouer des
-              défis classés normalement.
-            </Text>
-          )}
+        <Text
+          style={{
+            fontSize: 12,
+            color: COLORS.textMuted,
+            marginTop: 4,
+          }}
+        >
+          Tu dois finir tes punitions (pubs) avant de pouvoir rejouer des
+          défis classés normalement.
+        </Text>
+      )}
+    </View>
+
+        <View style={styles.card}>
+          <Text
+            style={{
+              fontSize: 16,
+              fontWeight: "800",
+              color: COLORS.text,
+              marginBottom: 6,
+            }}
+          >
+            Rituel quotidien
+          </Text>
+          <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
+            Récompenses quotidiennes prises consécutivement.
+          </Text>
+          <Text
+            style={{
+              color: COLORS.primary,
+              fontWeight: "900",
+              fontSize: 24,
+              marginTop: 8,
+            }}
+          >
+            {dailyStreak}🔥
+          </Text>
+        </View>
+
+        <View style={{ marginBottom: 18, gap: 12 }}>
+          <AppButton
+            label="Historique du cash"
+            variant="ghost"
+            onPress={() => navigation.navigate("WalletHistory")}
+          />
+          <AppButton
+            label="Défis Arena"
+            variant="ghost"
+            onPress={() => navigation.navigate("ArenaChallenges")}
+          />
         </View>
 
         {/* BADGES / ACHIEVEMENTS */}
-        <View
-          style={{
-            marginBottom: 18,
-            padding: 14,
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: COLORS.border,
-            backgroundColor: "#020617",
-          }}
-        >
+        <View style={styles.card}>
           <Text
             style={{
               fontSize: 16,
@@ -480,7 +872,7 @@ export default function ProfileScreen() {
               marginBottom: 4,
             }}
           >
-            Badges
+            Trophées de rue
           </Text>
           <Text
             style={{
@@ -489,7 +881,7 @@ export default function ProfileScreen() {
               marginBottom: 10,
             }}
           >
-            Badges débloqués : {unlockedCount} / {achievements.length}
+            Trophées débloqués : {unlockedCount} / {achievements.length}
           </Text>
 
           {achievements.map((a) => {
@@ -561,3 +953,24 @@ export default function ProfileScreen() {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  identityCard: {
+    marginBottom: 18,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: "#020617",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  card: {
+    marginBottom: 18,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.surface,
+  },
+});
