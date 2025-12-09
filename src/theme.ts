@@ -11,6 +11,18 @@ export const COLORS = {
   accent: "#FF6B00",
   success: "#34D399",
   danger: "#F87171",
+  
+  // New vibrant colors for better UI
+  blue: "#0EA5E9",
+  purple: "#A855F7",
+  pink: "#EC4899",
+  green: "#10B981",
+  orange: "#F97316",
+  red: "#EF4444",
+  yellow: "#FBBF24",
+  cyan: "#06B6D4",
+  indigo: "#6366F1",
+  lime: "#84CC16",
 };
 
 export type SportPalette = {
