@@ -42,7 +42,9 @@
   "expo": {
     "doctor": {
       "reactNativeDirectoryCheck": {
-        "exclude": ["react-native-webrtc"]
+        "exclude": [
+          "react-native-webrtc"
+        ]
       }
     }
   }
