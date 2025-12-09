@@ -240,7 +240,7 @@ export default function App() {
             />
             <Stack.Screen
               name="ChallengeDetail"
-              component={ChallengeDetailScreen}
+              component={ChallengeDetailScreen as React.ComponentType<any>}
             />
             <Stack.Screen
               name="RespondChallenge"
@@ -248,9 +248,12 @@ export default function App() {
             />
             <Stack.Screen
               name="PunishmentScreen"
-              component={PunishmentScreen}
+              component={PunishmentScreen as React.ComponentType<any>}
             />
-            <Stack.Screen name="ArenaLive" component={ArenaLiveScreen} />
+            <Stack.Screen
+              name="ArenaLive"
+              component={ArenaLiveScreen as React.ComponentType<any>}
+            />
             <Stack.Screen name="ArenaHistory" component={ArenaHistoryScreen} />
             <Stack.Screen
               name="ImpitoyableDashboard"

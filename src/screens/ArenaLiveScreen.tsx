@@ -1,5 +1,5 @@
 // src/screens/ArenaLiveScreen.tsx
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { ComponentType, useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, ScrollView, Alert, TouchableOpacity } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import AppButton from "../components/AppButton";
@@ -404,7 +404,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
   const fairPlayScore = playerStats?.fair_play_score ?? 100;
   const isFairPlayLocked = fairPlayScore < ARENA_FAIR_PLAY_THRESHOLD;
   const fairPlayTier = getFairPlayTier(fairPlayScore);
-  const CameraComponent = cameraModule?.Camera;
+  const CameraComponent = cameraModule?.Camera as ComponentType<any> | undefined;
   const frontCameraType =
     (cameraModule as any)?.CameraType?.front ||
     (cameraModule as any)?.Camera?.Constants?.Type?.front;

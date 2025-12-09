@@ -33,7 +33,8 @@
       }
     },
     "plugins": [
-      "expo-camera"
+      "expo-camera",
+      "expo-font"
     ]
   }
 }

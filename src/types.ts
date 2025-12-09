@@ -41,6 +41,7 @@ export interface PlayerStats {
   level: number;
   points: number;
   title?: string;
+  fair_play_score?: number;
 }
 
 export interface Battle {

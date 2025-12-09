@@ -1,6 +1,14 @@
 // src/screens/ImpitoyableDashboard.tsx
 import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  TextStyle,
+  ViewStyle,
+} from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
@@ -179,6 +187,24 @@ export default function ImpitoyableDashboard({ navigation }: any) {
       setObjectiveLoading(null);
     }
   };
+
+  const handleDismissCoachTips = useCallback(async () => {
+    setShowCoachTips(false);
+    try {
+      const { data: ses } = await supabase.auth.getSession();
+      if (!ses.session) {
+        return;
+      }
+      await supabase.auth.updateUser({
+        data: {
+          ...ses.session.user.user_metadata,
+          seenCoachTips: true,
+        },
+      });
+    } catch (err) {
+      console.log("COACH TIPS DISMISS ERROR", err);
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -468,7 +494,7 @@ export default function ImpitoyableDashboard({ navigation }: any) {
  );
 }
 
-const cardStyle = {
+const cardStyle: ViewStyle = {
   borderWidth: 1,
   borderColor: COLORS.border,
   borderRadius: 18,
@@ -477,25 +503,25 @@ const cardStyle = {
   backgroundColor: COLORS.surface,
 };
 
-const cardTitle = {
+const cardTitle: TextStyle = {
   fontSize: 16,
   fontWeight: "800",
   color: COLORS.text,
   marginBottom: 6,
 };
 
-const cardMetric = {
+const cardMetric: TextStyle = {
   fontSize: 18,
   fontWeight: "900",
   color: COLORS.primary,
 };
 
-const cardMuted = {
+const cardMuted: TextStyle = {
   fontSize: 13,
   color: COLORS.textMuted,
 };
 
-const tipCard = {
+const tipCard: ViewStyle = {
   borderWidth: 1,
   borderColor: COLORS.border,
   borderRadius: 14,
@@ -503,29 +529,14 @@ const tipCard = {
   backgroundColor: "#111827",
 };
 
-const tipTitle = {
+const tipTitle: TextStyle = {
   fontSize: 14,
   fontWeight: "800",
   color: COLORS.text,
   marginBottom: 4,
 };
 
-const tipText = {
+const tipText: TextStyle = {
   fontSize: 12,
   color: COLORS.textMuted,
 };
-  const handleDismissCoachTips = async () => {
-    setShowCoachTips(false);
-    try {
-      const { data: ses } = await supabase.auth.getSession();
-      if (!ses.session) return;
-      await supabase.auth.updateUser({
-        data: {
-          ...ses.session.user.user_metadata,
-          seenCoachTips: true,
-        },
-      });
-    } catch (err) {
-      console.log("COACH TIPS DISMISS ERROR", err);
-    }
-  };

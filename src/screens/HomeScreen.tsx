@@ -192,6 +192,7 @@ const HomeScreen = ({ navigation }: any) => {
     const ownerProfile = profilesMap.get(challenge.user_id);
     const challengeGender = ownerProfile?.gender as GenderValue | undefined;
     const ownerDepartment = ownerProfile?.department;
+    const ownerDepartmentLabel = getDepartmentLabel(ownerDepartment);
     const mismatchedGender =
       !allowMixedChallenges &&
       !!challengeGender &&

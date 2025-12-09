@@ -7,6 +7,8 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  TextStyle,
+  ViewStyle,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
@@ -687,7 +689,7 @@ const handleBuyTicket = async (offer: TicketOffer) => {
 
 type CardTheme = "primary" | "accent" | "neutral";
 
-const card = (theme: CardTheme) => ({
+const card = (theme: CardTheme): ViewStyle => ({
   marginBottom: 18,
   padding: 16,
   borderRadius: 20,
@@ -702,26 +704,26 @@ const card = (theme: CardTheme) => ({
     theme === "primary" ? COLORS.surface : theme === "accent" ? "#111827" : "#020617",
 });
 
-const cardTitle = {
+const cardTitle: TextStyle = {
   fontSize: 16,
   fontWeight: "800",
   color: COLORS.text,
   marginBottom: 4,
 };
 
-const cardMetric = {
+const cardMetric: TextStyle = {
   fontSize: 22,
   fontWeight: "900",
   color: COLORS.primary,
   marginBottom: 6,
 };
 
-const cardMuted = {
+const cardMuted: TextStyle = {
   fontSize: 13,
   color: COLORS.textMuted,
 };
 
-const sectionTitle = {
+const sectionTitle: TextStyle = {
   fontSize: 16,
   fontWeight: "800",
   color: COLORS.text,
