@@ -171,11 +171,11 @@ const HomeScreen = ({ navigation }: any) => {
         [
           {
             text: "Monter de niveau",
-            onPress: () => navigation.navigate("Coach"),
+            onPress: () => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Coach"}}]}),
           },
           {
             text: "Boutique / Quête quotidienne",
-            onPress: () => navigation.navigate("Boutique"),
+            onPress: () => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Boutique"}}]}),
           },
           {
             text: "Voir quand même",
@@ -210,7 +210,7 @@ const HomeScreen = ({ navigation }: any) => {
         [
           {
             text: "Ajuster mes préférences",
-            onPress: () => navigation.navigate("Profil"),
+            onPress: () => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]}),
           },
           {
             text: "Défier quand même",
@@ -234,7 +234,7 @@ const HomeScreen = ({ navigation }: any) => {
         [
           {
             text: "Ouvrir mes préférences",
-            onPress: () => navigation.navigate("Profil"),
+            onPress: () => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]}),
           },
           {
             text: "Défier quand même",
@@ -397,7 +397,7 @@ const HomeScreen = ({ navigation }: any) => {
             <AppButton
               label="Monter de niveau"
               variant="ghost"
-              onPress={() => navigation.navigate("Coach")}
+              onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Coach"}}]})}
               style={{ marginTop: 10 }}
             />
           )}
@@ -405,7 +405,7 @@ const HomeScreen = ({ navigation }: any) => {
             <AppButton
               label="Activer inter-territoires"
               variant="ghost"
-              onPress={() => navigation.navigate("Profil")}
+              onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
               style={{ marginTop: 10 }}
             />
           )}
@@ -413,7 +413,7 @@ const HomeScreen = ({ navigation }: any) => {
             <AppButton
               label="Activer le mode mixte"
               variant="ghost"
-              onPress={() => navigation.navigate("Profil")}
+              onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
               style={{ marginTop: 10 }}
             />
           )}
@@ -470,13 +470,13 @@ const HomeScreen = ({ navigation }: any) => {
             label="Quêtes coach"
             size="sm"
             variant="ghost"
-            onPress={() => navigation.navigate("Coach")}
+            onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Coach"}}]})}
           />
           <AppButton
             label="Récompense quotidienne"
             size="sm"
             variant="ghost"
-            onPress={() => navigation.navigate("Boutique")}
+            onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Boutique"}}]})}
           />
         </View>
       </View>
@@ -531,7 +531,7 @@ const HomeScreen = ({ navigation }: any) => {
       </View>
       <View style={styles.heroLinksContainer}>
         <TouchableOpacity
-          onPress={() => navigation.navigate("Coach")}
+          onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Coach"}}]})}
           style={styles.heroLink}
         >
           <Text style={styles.heroLinkText}>Dash Impitoyable</Text>
@@ -562,7 +562,7 @@ const HomeScreen = ({ navigation }: any) => {
               label="Régler mon camp"
               variant="ghost"
               size="sm"
-              onPress={() => navigation.navigate("Profil")}
+              onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
             />
             <AppButton
               label="Compris"
@@ -596,7 +596,7 @@ const HomeScreen = ({ navigation }: any) => {
           </Text>
         </View>
         <TouchableOpacity
-          onPress={() => navigation.navigate("Profil")}
+          onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
           style={styles.preferenceButton}
         >
           <Text style={styles.preferenceButtonText}>Modifier</Text>
@@ -605,7 +605,7 @@ const HomeScreen = ({ navigation }: any) => {
       <DepartmentBattleHeader
         playerDepartment={playerDepartment}
         scores={departmentScores}
-        onPress={() => navigation.navigate("Classement")}
+        onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Classement"}}]})}
       />
       <Text
         style={{

@@ -256,10 +256,6 @@ export default function App() {
             />
             <Stack.Screen name="ArenaHistory" component={ArenaHistoryScreen} />
             <Stack.Screen
-              name="ImpitoyableDashboard"
-              component={ImpitoyableDashboard}
-            />
-            <Stack.Screen
               name="FairPlayHelp"
               component={FairPlayHelpScreen}
             />

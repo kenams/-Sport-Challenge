@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "IMMORTAL-K",
-    "slug": "immortal-k",
+    "slug": "sport-challenge-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/immortal-k-logo.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "image": "./assets/immortal-k-logo.png",
       "resizeMode": "contain",

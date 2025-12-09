@@ -6,6 +6,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { COLORS } from "../theme";
+import { SCREEN_PADDING } from "../utils/layout";
 import BrandHeader from "./BrandHeader";
 
 type Props = {
@@ -29,8 +30,9 @@ export default function ScreenContainer({
       style={[
         styles.container,
         {
-          paddingTop: (insets.top || 0) + 12,
-          paddingBottom: (insets.bottom || 0) + 12,
+          paddingTop: (insets.top || 0) + SCREEN_PADDING.vertical,
+          paddingBottom: (insets.bottom || 0) + SCREEN_PADDING.vertical,
+          paddingHorizontal: SCREEN_PADDING.horizontal,
           backgroundColor: backgroundColor || COLORS.background,
         },
         style,
@@ -52,7 +54,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: "relative",
-    paddingHorizontal: 16,
     backgroundColor: COLORS.background,
   },
   backdrop: {

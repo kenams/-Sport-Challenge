@@ -257,13 +257,13 @@ export default function ImpitoyableDashboard({ navigation }: any) {
               label="Rivalité"
               variant="ghost"
               size="sm"
-              onPress={() => navigation.navigate("Classement")}
+              onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Classement"}}]})}
             />
             <AppButton
               label="Boutique"
               variant="ghost"
               size="sm"
-              onPress={() => navigation.navigate("Boutique")}
+              onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Boutique"}}]})}
             />
           </View>
         </View>

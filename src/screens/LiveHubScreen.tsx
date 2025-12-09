@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   Share,
+  StyleSheet,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
@@ -17,6 +18,7 @@ import { Challenge } from "../types";
 import { fetchProfilesMap } from "../services/profile";
 import { getDepartmentLabel } from "../utils/departments";
 import { logEvent } from "../services/telemetry";
+import { SPACING, SCREEN_PADDING } from "../utils/layout";
 
 type HighlightedChallenge = Challenge & {
   pseudo?: string | null;
@@ -330,7 +332,12 @@ export default function LiveHubScreen({ navigation }: any) {
           <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
             <AppButton
               label="Choisir un défi"
-              onPress={() => navigation.navigate("Defis")}
+              onPress={() =>
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: "MainTabs", params: { screen: "Defis" } }],
+                })
+              }
             />
             <AppButton
               label="Historique Arena"
