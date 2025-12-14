@@ -91,7 +91,7 @@ export default function ArenaChallengesScreen({ navigation }: any) {
   };
 
   const renderItem = ({ item }: { item: Challenge }) => {
-    const palette = getSportPalette(item.sport);
+    const palette = getSportPalette(item?.sport || "");
     const stake = item.bet_amount || 0;
     const profile = profilesMap.get(item.user_id);
     const creatorLabel =
@@ -129,7 +129,7 @@ export default function ArenaChallengesScreen({ navigation }: any) {
               {creatorLabel}
             </Text>
           </View>
-          <SportTag sport={item.sport} />
+          <SportTag sport={item?.sport || ""} />
         </View>
         <Text
           style={{
@@ -153,32 +153,17 @@ export default function ArenaChallengesScreen({ navigation }: any) {
         >
           Mise : {stake} coins
         </Text>
-        <TouchableOpacity
+        <AppButton
+          label="Ouvrir en Arena"
           onPress={() =>
             navigation.navigate("ArenaLive", {
               challengeId: item.id,
               role: "host",
             })
           }
-          style={{
-            marginTop: 12,
-            paddingVertical: 10,
-            borderRadius: 999,
-            borderWidth: 1,
-            borderColor: COLORS.primary,
-            alignItems: "center",
-            backgroundColor: COLORS.primary,
-          }}
-        >
-          <Text
-            style={{
-              fontWeight: "900",
-              color: "#050505",
-            }}
-          >
-            Ouvrir en Arena
-          </Text>
-        </TouchableOpacity>
+          style={{ marginTop: 12 }}
+          sport={item?.sport || undefined}
+        />
       </View>
     );
   };

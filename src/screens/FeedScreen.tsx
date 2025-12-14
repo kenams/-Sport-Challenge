@@ -1,5 +1,5 @@
 // src/screens/FeedScreen.tsx
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,11 +17,14 @@ import UserAvatar from "../components/UserAvatar";
 import AppButton from "../components/AppButton";
 import { fetchProfilesMap } from "../services/profile";
 import { supabase } from "../supabase";
-import { COLORS } from "../theme";
+import { COLORS, getSportPalette } from "../theme";
 import { PlayerStats, UserProfile } from "../types";
 import { getTitle as getTitleFromLeveling } from "../utils/leveling";
 import { ARENA_FAIR_PLAY_THRESHOLD } from "../services/arenaLive";
 import { getFairPlayTier } from "../utils/fairPlay";
+import { useSportTheme } from "../context/SportThemeContext";
+import { feedbackTap, playSportFeedback } from "../utils/feedback";
+import { scheduleSportRoutineReminder } from "../notifications";
 
 type ActivityRow = {
   id: number;
@@ -56,6 +59,7 @@ function getTypeLabel(type: string): string {
 }
 
 export default function FeedScreen({ navigation }: Props) {
+  console.log("FeedScreen render — aggressive theme active");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<ActivityRow[]>([]);
@@ -64,9 +68,42 @@ export default function FeedScreen({ navigation }: Props) {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sportFilter, setSportFilter] = useState<string>("all");
   const [challengeSportMap, setChallengeSportMap] = useState<Map<number, string>>(
-    new Map()
-  );
+      new Map()
+    );
   const [availableSports, setAvailableSports] = useState<string[]>([]);
+  const {
+    palette,
+    setActiveSport,
+    activeSport,
+    favoriteSports,
+    toggleFavorite,
+    hydrated,
+    resolvedSport,
+    recentSessions,
+  } = useSportTheme(sportFilter === "all" ? null : sportFilter);
+  const initialPresetRef = useRef(false);
+  const themeColors = useMemo(() => {
+    if (!resolvedSport) {
+      return {
+        background: COLORS.background,
+        card: COLORS.card,
+        border: COLORS.border,
+        accent: COLORS.primary,
+        text: COLORS.text,
+        textMuted: COLORS.textMuted,
+        mutedOpacity: 1,
+      };
+    }
+    return {
+      background: palette.background,
+      card: palette.card,
+      border: palette.border,
+      accent: palette.accent,
+      text: palette.text,
+      textMuted: palette.text,
+      mutedOpacity: 0.75,
+    };
+  }, [palette, resolvedSport]);
 
   const loadFeed = useCallback(async () => {
     try {
@@ -127,8 +164,8 @@ export default function FeedScreen({ navigation }: Props) {
         const sportMap = new Map<number, string>();
         const sportsSet = new Set<string>();
         (challengesData || []).forEach((row: any) => {
-          sportMap.set(row.id, row.sport);
-          if (row.sport) sportsSet.add(row.sport);
+          sportMap.set(row.id, row?.sport || "");
+          if (row?.sport) sportsSet.add(row.sport);
         });
         setChallengeSportMap(sportMap);
         setAvailableSports(Array.from(sportsSet));
@@ -153,6 +190,20 @@ export default function FeedScreen({ navigation }: Props) {
     });
     loadFeed();
   }, [loadFeed]);
+
+  useEffect(() => {
+    if (!hydrated || initialPresetRef.current) return;
+    if (sportFilter !== "all") {
+      initialPresetRef.current = true;
+      return;
+    }
+    const preferred = activeSport || favoriteSports[0] || null;
+    if (preferred) {
+      setSportFilter(preferred);
+      setActiveSport(preferred);
+    }
+    initialPresetRef.current = true;
+  }, [hydrated, activeSport, favoriteSports, sportFilter, setActiveSport]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -198,6 +249,39 @@ export default function FeedScreen({ navigation }: Props) {
     }
   };
 
+  const handleSportChipPress = useCallback(
+    (sportKey: string) => {
+      const isCurrent = sportFilter === sportKey;
+      if (isCurrent) {
+        setSportFilter("all");
+        setActiveSport(null);
+        feedbackTap();
+        return;
+      }
+      setSportFilter(sportKey);
+      if (sportKey === "all") {
+        setActiveSport(null);
+        feedbackTap();
+      } else {
+        setActiveSport(sportKey);
+        playSportFeedback(sportKey);
+      }
+    },
+    [sportFilter, setActiveSport]
+  );
+
+  const handleFavoriteToggle = useCallback(() => {
+    if (sportFilter === "all") return;
+    toggleFavorite(sportFilter);
+    playSportFeedback(sportFilter);
+  }, [sportFilter, toggleFavorite]);
+
+  const handleRoutineReminder = useCallback(() => {
+    if (sportFilter === "all") return;
+    feedbackTap();
+    scheduleSportRoutineReminder(sportFilter).catch(() => {});
+  }, [sportFilter]);
+
   const filteredRows =
     sportFilter === "all"
       ? rows
@@ -207,6 +291,60 @@ export default function FeedScreen({ navigation }: Props) {
             : null;
           return sport === sportFilter;
         });
+  const sportProfileData = useMemo(() => {
+    if (sportFilter === "all") return null;
+    if (filteredRows.length === 0) return null;
+    let created = 0;
+    let responses = 0;
+    let battles = 0;
+    const players = new Set<string>();
+    let latest: ActivityRow | null = null;
+    filteredRows.forEach((item) => {
+      if (item.user_id) players.add(item.user_id);
+      switch (item.type) {
+        case "challenge_created":
+          created += 1;
+          break;
+        case "challenge_response":
+          responses += 1;
+          break;
+        case "battle_finished":
+        case "arena_finished":
+          battles += 1;
+          break;
+        default:
+          break;
+      }
+      if (!latest) {
+        latest = item;
+        return;
+      }
+      if (
+        new Date(item.created_at).getTime() >
+        new Date(latest.created_at).getTime()
+      ) {
+        latest = item;
+      }
+    });
+    return {
+      created,
+      responses,
+      battles,
+      players: players.size,
+      lastActivity: latest,
+    };
+  }, [filteredRows, sportFilter]);
+  const sportProfilePalette =
+    sportFilter === "all" ? null : getSportPalette(sportFilter);
+  const recentSportSession = useMemo(() => {
+    if (sportFilter === "all") return null;
+    return recentSessions.find((entry) => entry.sport === sportFilter) || null;
+  }, [recentSessions, sportFilter]);
+  const isFavoriteSport =
+    sportFilter !== "all" && favoriteSports.includes(sportFilter);
+  const lastActivityLabel = sportProfileData?.lastActivity
+    ? getTypeLabel(sportProfileData.lastActivity.type)
+    : null;
 
   const renderItem = ({ item }: { item: ActivityRow }) => {
     const stats = statsMap.get(item.user_id);
@@ -233,7 +371,13 @@ export default function FeedScreen({ navigation }: Props) {
             });
           }
         }}
-        style={styles.activityCard}
+        style={[
+          styles.activityCard,
+          {
+            borderColor: themeColors.border,
+            backgroundColor: themeColors.card,
+          },
+        ]}
       >
         <View style={styles.activityAvatar}>
           <UserAvatar
@@ -245,13 +389,13 @@ export default function FeedScreen({ navigation }: Props) {
 
         <View style={{ flex: 1 }}>
           <View style={styles.activityHeader}>
-            <Text style={styles.activityName}>{displayPseudo}</Text>
-            <Text style={styles.activityTime}>
+            <Text style={[styles.activityName, { color: themeColors.text }]}>{displayPseudo}</Text>
+            <Text style={[styles.activityTime, { color: themeColors.textMuted, opacity: themeColors.mutedOpacity }]}>
               {new Date(item.created_at).toLocaleString("fr-FR")}
             </Text>
           </View>
           <View style={styles.activityBadges}>
-            <Text style={styles.activityLevel}>
+            <Text style={[styles.activityLevel, { color: themeColors.textMuted, opacity: themeColors.mutedOpacity }]}>
               {title} • Niveau {level}
             </Text>
             <View
@@ -271,7 +415,7 @@ export default function FeedScreen({ navigation }: Props) {
             </Text>
           )}
 
-          <Text style={styles.activityMessage}>
+          <Text style={[styles.activityMessage, { color: themeColors.text }]}>
             {item.message || typeLabel}
           </Text>
 
@@ -280,6 +424,7 @@ export default function FeedScreen({ navigation }: Props) {
               label="Voir le défi"
               size="sm"
               variant="ghost"
+              sport={challengeSportMap.get(item.challenge_id!) || undefined}
               style={styles.previewButton}
               onPress={() =>
                 navigation.navigate("ChallengeDetail", {
@@ -307,6 +452,7 @@ export default function FeedScreen({ navigation }: Props) {
                     challengeId: item.challenge_id,
                   })
                 }
+                sport={challengeSportMap.get(item.challenge_id!) || undefined}
               />
             )}
           </View>
@@ -315,82 +461,355 @@ export default function FeedScreen({ navigation }: Props) {
     );
   };
 
-  if (loading) {
+    if (loading) {
+      return (
+        <ScreenContainer backgroundColor={themeColors.background}>
+          <View
+            style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
+          >
+            <ActivityIndicator size="large" color={themeColors.accent} />
+          </View>
+        </ScreenContainer>
+      );
+    }
+
     return (
-      <ScreenContainer>
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      </ScreenContainer>
-    );
-  }
+      <ScreenContainer backgroundColor={themeColors.background}>
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "900",
+              color: themeColors.text,
+              marginBottom: 12,
+            }}
+          >
+            Activite
+          </Text>
+          <Text
+            style={{
+              fontSize: 12,
+              color: themeColors.textMuted,
+              opacity: themeColors.mutedOpacity,
+              marginBottom: 16,
+            }}
+          >
+            Historique des defis crees, reponses et battles terminees.
+          </Text>
 
-  return (
-    <ScreenContainer>
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "900",
-            color: COLORS.text,
-            marginBottom: 12,
-          }}
-        >
-          Activite
-        </Text>
-        <Text
-          style={{
-            fontSize: 12,
-            color: COLORS.textMuted,
-            marginBottom: 16,
-          }}
-        >
-          Historique des defis crees, reponses et battles terminees.
-        </Text>
-
-        <View
-          style={{
-            flexDirection: "row",
-            flexWrap: "wrap",
-            marginBottom: 12,
-            gap: 8,
-          }}
-        >
-          {["all", ...availableSports].map((sport) => (
-            <TouchableOpacity
-              key={sport}
-              onPress={() => setSportFilter(sport)}
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor:
-                  sportFilter === sport ? COLORS.primary : COLORS.border,
-                backgroundColor:
-                  sportFilter === sport ? COLORS.primary : "transparent",
-              }}
-            >
-              <Text
+          <View
+            style={{
+              flexDirection: "row",
+              flexWrap: "wrap",
+              marginBottom: 12,
+              gap: 8,
+            }}
+          >
+            {["all", ...availableSports].map((sport) => (
+              <TouchableOpacity
+                key={sport}
+                onPress={() => handleSportChipPress(sport)}
                 style={{
-                  color: sportFilter === sport ? "#050505" : COLORS.text,
-                  fontSize: 12,
-                  fontWeight: "700",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  borderColor:
+                    sportFilter === sport
+                      ? themeColors.accent
+                      : themeColors.border,
+                  backgroundColor:
+                    sportFilter === sport
+                      ? themeColors.accent
+                      : "transparent",
                 }}
               >
-                {sport === "all" ? "Tous" : sport}
+                <Text
+                  style={{
+                    color: sportFilter === sport
+                      ? "#050505"
+                      : themeColors.text,
+                    fontSize: 12,
+                    fontWeight: "700",
+                  }}
+                >
+                  {sport === "all" ? "Tous" : sport}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {favoriteSports.length > 0 && (
+            <View style={styles.favoriteRow}>
+              <Text
+                style={[
+                  styles.favoriteLabel,
+                  {
+                    color: themeColors.textMuted,
+                    opacity: themeColors.mutedOpacity,
+                  },
+                ]}
+              >
+                Mes favoris
               </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {favoriteSports.map((sport) => (
+                  <TouchableOpacity
+                    key={`fav-${sport}`}
+                    onPress={() => handleSportChipPress(sport)}
+                    style={[
+                      styles.favoriteChip,
+                      {
+                        borderColor:
+                          sportFilter === sport
+                            ? themeColors.accent
+                            : themeColors.border,
+                        backgroundColor:
+                          sportFilter === sport
+                            ? themeColors.accent
+                            : "transparent",
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color:
+                          sportFilter === sport
+                            ? "#050505"
+                            : themeColors.text,
+                        fontWeight: "700",
+                      }}
+                    >
+                      ★ {sport}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
-        {filteredRows.length === 0 ? (
-          <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>
-            Aucune activite pour ce filtre. Cre ou reponds a un defi pour
-            remplir le feed.
-          </Text>
+          {sportProfileData && sportProfilePalette && (
+            <View
+              style={[
+                styles.sportProfileCard,
+                {
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.card,
+                },
+              ]}
+            >
+              <View style={styles.sportProfileHeader}>
+                <Text
+                  style={[
+                    styles.sportProfileTitle,
+                    { color: themeColors.text },
+                  ]}
+                >
+                  Profil {sportFilter}
+                </Text>
+                <TouchableOpacity onPress={handleFavoriteToggle}>
+                  <Text
+                    style={{
+                      color: isFavoriteSport
+                        ? sportProfilePalette.accent
+                        : themeColors.textMuted,
+                      fontWeight: "800",
+                    }}
+                  >
+                    {isFavoriteSport ? "★ Favori" : "☆ Ajouter"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.sportProfileStatsRow}>
+                <View style={styles.sportProfileStat}>
+                  <Text
+                    style={[
+                      styles.sportProfileValue,
+                      { color: sportProfilePalette.accent },
+                    ]}
+                  >
+                    {sportProfileData.created}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sportProfileLabel,
+                      {
+                        color: themeColors.textMuted,
+                        opacity: themeColors.mutedOpacity,
+                      },
+                    ]}
+                  >
+                    Defis crees
+                  </Text>
+                </View>
+                <View style={styles.sportProfileStat}>
+                  <Text
+                    style={[
+                      styles.sportProfileValue,
+                      { color: sportProfilePalette.accent },
+                    ]}
+                  >
+                    {sportProfileData.responses}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sportProfileLabel,
+                      {
+                        color: themeColors.textMuted,
+                        opacity: themeColors.mutedOpacity,
+                      },
+                    ]}
+                  >
+                    Reponses
+                  </Text>
+                </View>
+                <View style={styles.sportProfileStat}>
+                  <Text
+                    style={[
+                      styles.sportProfileValue,
+                      { color: sportProfilePalette.accent },
+                    ]}
+                  >
+                    {sportProfileData.battles}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sportProfileLabel,
+                      {
+                        color: themeColors.textMuted,
+                        opacity: themeColors.mutedOpacity,
+                      },
+                    ]}
+                  >
+                    Battles
+                  </Text>
+                </View>
+                <View style={styles.sportProfileStat}>
+                  <Text
+                    style={[
+                      styles.sportProfileValue,
+                      { color: sportProfilePalette.accent },
+                    ]}
+                  >
+                    {sportProfileData.players}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sportProfileLabel,
+                      {
+                        color: themeColors.textMuted,
+                        opacity: themeColors.mutedOpacity,
+                      },
+                    ]}
+                  >
+                    Joueurs actifs
+                  </Text>
+                </View>
+              </View>
+              {sportProfileData.lastActivity && (
+                <Text
+                  style={[
+                    styles.sportProfileFooter,
+                    {
+                      color: themeColors.textMuted,
+                      opacity: themeColors.mutedOpacity,
+                    },
+                  ]}
+                >
+                  Derniere activite : {lastActivityLabel} •{" "}
+                  {new Date(
+                    sportProfileData.lastActivity.created_at
+                  ).toLocaleString("fr-FR")}
+                </Text>
+              )}
+            </View>
+          )}
+          {sportProfileData && (
+            <View
+              style={[
+                styles.routineCard,
+                {
+                  borderColor: themeColors.border,
+                  backgroundColor: themeColors.card,
+                },
+              ]}
+            >
+              <View style={styles.sportProfileHeader}>
+                <Text
+                  style={[
+                    styles.sportProfileTitle,
+                    { color: themeColors.text },
+                  ]}
+                >
+                  Routine rapide
+                </Text>
+                {recentSportSession && (
+                  <Text
+                    style={{
+                      color: themeColors.textMuted,
+                      opacity: themeColors.mutedOpacity,
+                      fontSize: 11,
+                    }}
+                  >
+                    Live:{" "}
+                    {new Date(recentSportSession.timestamp).toLocaleString(
+                      "fr-FR"
+                    )}
+                  </Text>
+                )}
+              </View>
+              <Text
+                style={{
+                  color: themeColors.textMuted,
+                  opacity: themeColors.mutedOpacity,
+                  fontSize: 12,
+                  marginBottom: 12,
+                }}
+              >
+                Lance un défi, checke les lives ou programme ton rappel pour{" "}
+                {sportFilter}.
+              </Text>
+              <View style={styles.routineActions}>
+                <AppButton
+                  label="Créer un défi"
+                  size="sm"
+                  onPress={() => {
+                    feedbackTap();
+                    navigation.navigate("CreateChallenge");
+                  }}
+                  sport={sportFilter === "all" ? undefined : sportFilter}
+                />
+                <AppButton
+                  label="Lives"
+                  size="sm"
+                  variant="ghost"
+                  onPress={() => {
+                    feedbackTap();
+                    navigation.navigate("LiveHub");
+                  }}
+                  sport={sportFilter === "all" ? undefined : sportFilter}
+                />
+                <AppButton
+                  label="Rappel"
+                  size="sm"
+                  variant="ghost"
+                  onPress={handleRoutineReminder}
+                  sport={sportFilter === "all" ? undefined : sportFilter}
+                />
+              </View>
+            </View>
+          )}
+
+          {filteredRows.length === 0 ? (
+            <Text
+              style={{
+                color: themeColors.textMuted,
+                opacity: themeColors.mutedOpacity,
+                fontSize: 14,
+              }}
+            >
+              Aucune activite pour ce filtre. Cre ou reponds a un defi pour
+              remplir le feed.
+            </Text>
         ) : (
           <FlatList
             data={filteredRows}
@@ -416,7 +835,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: "#020617",
+    backgroundColor: COLORS.card,
   },
   activityAvatar: {
     marginRight: 12,
@@ -433,7 +852,7 @@ const styles = StyleSheet.create({
   },
   activityTime: {
     fontSize: 10,
-    color: "#6B7280",
+    color: COLORS.textMuted,
   },
   activityBadges: {
     flexDirection: "row",
@@ -459,7 +878,7 @@ const styles = StyleSheet.create({
   },
   flagText: {
     fontSize: 11,
-    color: "#f87171",
+    color: COLORS.danger,
     marginBottom: 4,
     fontWeight: "700",
   },
@@ -470,7 +889,7 @@ const styles = StyleSheet.create({
   },
   previewButton: {
     marginTop: 6,
-    borderColor: "#38BDF8",
+    borderColor: COLORS.neonCyan,
   },
   activityActions: {
     flexDirection: "row",
@@ -482,14 +901,78 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#F87171",
-  },
-  reportLabel: {
-    fontSize: 11,
-    color: "#F87171",
-    fontWeight: "700",
-  },
-  openButton: {
-    borderColor: "#38BDF8",
-  },
-});
+    borderColor: COLORS.danger,
+    },
+    reportLabel: {
+      fontSize: 11,
+      color: COLORS.danger,
+      fontWeight: "700",
+    },
+    openButton: {
+      borderColor: COLORS.neonCyan,
+    },
+    favoriteRow: {
+      marginBottom: 16,
+    },
+    favoriteLabel: {
+      fontSize: 11,
+      marginBottom: 6,
+      fontWeight: "700",
+    },
+    favoriteChip: {
+      marginRight: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    sportProfileCard: {
+      borderWidth: 1,
+      borderRadius: 18,
+      padding: 14,
+      marginBottom: 16,
+    },
+    sportProfileHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    sportProfileTitle: {
+      fontSize: 16,
+      fontWeight: "900",
+    },
+    sportProfileStatsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 12,
+    },
+    sportProfileStat: {
+      minWidth: 70,
+    },
+    sportProfileValue: {
+      fontSize: 20,
+      fontWeight: "900",
+    },
+    sportProfileLabel: {
+      fontSize: 11,
+      fontWeight: "700",
+      textTransform: "uppercase",
+    },
+    sportProfileFooter: {
+      marginTop: 12,
+      fontSize: 11,
+      fontWeight: "600",
+    },
+    routineCard: {
+      borderWidth: 1,
+      borderRadius: 18,
+      padding: 16,
+      marginBottom: 16,
+    },
+    routineActions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 10,
+    },
+  });

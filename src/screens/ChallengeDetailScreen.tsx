@@ -144,7 +144,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
     try {
       feedbackTap();
       const message = [
-        ` Fight ${challenge.sport} en cours`,
+        ` Fight ${challenge?.sport || "?"} en cours`,
         "",
         `Titre : ${challenge.title}`,
         `Description : ${challenge.description}`,
@@ -423,7 +423,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
         user_id: challenge.user_id,
         title: roundSuffix,
         description: `${challenge.description}\nRound supplémentaire pour défendre ton titre.`,
-        sport: challenge.sport,
+        sport: challenge?.sport || "",
         target_value: challenge.target_value,
         unit: challenge.unit,
         video_url: challenge.video_url,
@@ -582,12 +582,14 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
           label="Ouvrir Arena Live"
           onPress={handleOpenArenaLive}
           disabled={liveLocked}
+          sport={challenge?.sport || undefined}
         />
         <AppButton
           label="Simuler le mode (demo)"
           variant="ghost"
           onPress={handleOpenArenaSimulation}
           style={{ marginTop: 12 }}
+          sport={challenge?.sport || undefined}
         />
       </View>
 
@@ -636,7 +638,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
 
   if (loading && !challenge) {
     return (
-      <ScreenContainer backgroundColor={palette.background}>
+      <ScreenContainer sport={challenge?.sport || undefined}>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -648,7 +650,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
 
   if (!challenge) {
     return (
-      <ScreenContainer backgroundColor={palette.background}>
+      <ScreenContainer sport={challenge?.sport || undefined}>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -668,13 +670,13 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
     ownerProfile?.pseudo ||
     challenge.pseudo ||
     `Joueur ${challenge.user_id.slice(0, 4)}...${challenge.user_id.slice(-4)}`;
-  const challengeDomain = getSportDomain(challenge.sport);
+  const challengeDomain = getSportDomain(challenge?.sport || "");
   const domainPalette = getSportPalette(challengeDomain.paletteKey);
   const LIVE_MIN_LEVEL = 5;
   const liveLocked = currentUserLevel < LIVE_MIN_LEVEL;
 
   return (
-    <ScreenContainer backgroundColor={palette.background}>
+    <ScreenContainer sport={challenge?.sport || undefined}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -709,7 +711,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
             >
               {challenge.title}
             </Text>
-            <SportTag sport={challenge.sport} />
+            <SportTag sport={challenge?.sport || ""} />
           </View>
 
           <View
@@ -797,7 +799,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
                 marginLeft: 6,
               }}
             >
-              {challenge.sport}
+              {challenge?.sport || ""}
             </Text>
           </View>
 
@@ -936,6 +938,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
               label="Lancer Round 2"
               onPress={handleBackToBack}
               loading={backToBackLoading}
+              sport={challenge?.sport || undefined}
             />
           </View>
         )}

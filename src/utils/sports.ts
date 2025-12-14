@@ -76,7 +76,7 @@ export const groupChallengesByDomain = (
   const map = new Map<string, ChallengeSection>();
 
   list.forEach((challenge) => {
-    const domain = getSportDomain(challenge.sport);
+    const domain = getSportDomain(challenge?.sport);
     if (!map.has(domain.key)) {
       map.set(domain.key, { key: domain.key, domain, data: [] });
     }

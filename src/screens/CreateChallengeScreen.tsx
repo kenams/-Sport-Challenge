@@ -28,10 +28,20 @@ export default function CreateChallengeScreen({ navigation, route }: any) {
   const rematchSport = route?.params?.rematchSport || "";
   const rematchTitle = route?.params?.rematchTitle || "";
   const rematchBet = route?.params?.rematchBet || 0;
+  const rouletteSport = route?.params?.rouletteSport || "";
+  const rouletteOpponentPseudo = route?.params?.rouletteOpponentPseudo || "";
+  const rouletteDuelId = route?.params?.rouletteDuelId || null;
 
-  const [title, setTitle] = useState(rematchTitle);
+  const initialTitle =
+    rematchTitle ||
+    (rouletteDuelId && rouletteOpponentPseudo
+      ? `Roulette vs ${rouletteOpponentPseudo}`
+      : "");
+  const initialSport = rematchSport || rouletteSport || "";
+
+  const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState("");
-  const [sport, setSport] = useState(rematchSport);
+  const [sport, setSport] = useState(initialSport);
   const [targetValue, setTargetValue] = useState("");
   const [unit, setUnit] = useState("");
   const [betEnabled, setBetEnabled] = useState(rematchBet > 0);
@@ -203,6 +213,20 @@ export default function CreateChallengeScreen({ navigation, route }: any) {
         Alert.alert("Erreur", "Impossible de creer le defi.");
         setSubmitting(false);
         return;
+      }
+
+      if (rouletteDuelId) {
+        try {
+          await supabase
+            .from("roulette_duels")
+            .update({
+              challenge_id: inserted.id,
+              status: "challenge_created",
+            })
+            .eq("id", rouletteDuelId);
+        } catch (rouletteError) {
+          console.log("ROULETTE UPDATE ERROR", rouletteError);
+        }
       }
 
       // 3) Si defi classe, deduire les coins du createur

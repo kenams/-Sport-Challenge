@@ -21,7 +21,7 @@ export default function BrandHeader() {
           height: 48,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: "rgba(250,205,21,0.4)",
+          borderColor: COLORS.primary + "66",
         }}
         resizeMode="contain"
       />

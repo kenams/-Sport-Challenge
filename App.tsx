@@ -34,6 +34,7 @@ import AdminAuditScreen from "./src/screens/AdminAuditScreen";
 import ArenaChallengesScreen from "./src/screens/ArenaChallengesScreen";
 import LiveHubScreen from "./src/screens/LiveHubScreen";
 import { ensurePlayerStats } from "./src/utils/playerStats";
+import { SportThemeProvider } from "./src/context/SportThemeContext";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -229,11 +230,12 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {session ? (
-          <>
-            <Stack.Screen name="MainTabs" component={MainTabs} />
+    <SportThemeProvider>
+      <NavigationContainer>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {session ? (
+            <>
+              <Stack.Screen name="MainTabs" component={MainTabs} />
             <Stack.Screen
               name="CreateChallenge"
               component={CreateChallengeScreen}
@@ -281,13 +283,14 @@ export default function App() {
             />
             <Stack.Screen name="LiveHub" component={LiveHubScreen} />
           </>
-        ) : (
-          <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-          </>
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+          ) : (
+            <>
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+            </>
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SportThemeProvider>
   );
 }

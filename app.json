@@ -34,7 +34,6 @@
       }
     },
     "plugins": [
-      "expo-dev-client",
       "expo-camera",
       "expo-font"
     ]

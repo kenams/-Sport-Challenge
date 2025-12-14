@@ -19,6 +19,7 @@ import { fetchProfilesMap } from "../services/profile";
 import { getDepartmentLabel } from "../utils/departments";
 import { logEvent } from "../services/telemetry";
 import { SPACING, SCREEN_PADDING } from "../utils/layout";
+import { useSportTheme } from "../context/SportThemeContext";
 
 type HighlightedChallenge = Challenge & {
   pseudo?: string | null;
@@ -42,6 +43,7 @@ export default function LiveHubScreen({ navigation }: any) {
     "all"
   );
   const [scheduling, setScheduling] = useState(false);
+  const { palette, resolvedSport } = useSportTheme();
 
   const loadChallenges = useCallback(async () => {
     try {
@@ -191,7 +193,7 @@ export default function LiveHubScreen({ navigation }: any) {
       const link = `https://immortal-k.app/live/${challenge.id}`;
       await Share.share({
         message: [
-          `Je t'attends en live sur ${challenge.sport}.`,
+          `Je t'attends en live sur ${challenge?.sport || "?"}.`,
         `Défi : ${challenge.title}`,
         `Objectif : ${challenge.target_value} ${challenge.unit}`,
         `Territoire : ${challenge.territory || "?"}`,
@@ -254,6 +256,7 @@ export default function LiveHubScreen({ navigation }: any) {
           onPress={() =>
             navigation.navigate("ChallengeDetail", { challengeId: item.id })
           }
+          sport={item?.sport || undefined}
         />
         <AppButton
           label="Passer en live"
@@ -262,6 +265,7 @@ export default function LiveHubScreen({ navigation }: any) {
           onPress={() =>
             navigation.navigate("ArenaLive", { challengeId: item.id })
           }
+          sport={item?.sport || undefined}
         />
         <AppButton
           label="Programmer"
@@ -269,19 +273,22 @@ export default function LiveHubScreen({ navigation }: any) {
           variant="ghost"
           onPress={() => handleSchedulePrompt(item)}
           disabled={scheduling}
+          sport={item?.sport || undefined}
         />
         <AppButton
           label="Partager"
           size="sm"
           variant="ghost"
           onPress={() => handleShareLive(item)}
+          sport={item?.sport || undefined}
         />
+
       </View>
     </View>
   );
 
   return (
-    <ScreenContainer>
+    <ScreenContainer sport={resolvedSport || undefined}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
@@ -290,7 +297,7 @@ export default function LiveHubScreen({ navigation }: any) {
           style={{
             fontSize: 24,
             fontWeight: "900",
-            color: COLORS.text,
+            color: palette.text,
             marginBottom: 8,
           }}
         >
@@ -310,17 +317,17 @@ export default function LiveHubScreen({ navigation }: any) {
           style={{
             borderWidth: 1,
             borderRadius: 18,
-            borderColor: COLORS.border,
+            borderColor: palette.border,
             padding: 16,
             marginBottom: 18,
-            backgroundColor: "#020617",
+            backgroundColor: palette.card,
           }}
         >
           <Text
             style={{
               fontSize: 16,
               fontWeight: "900",
-              color: COLORS.text,
+              color: palette.text,
               marginBottom: 6,
             }}
           >
@@ -351,17 +358,17 @@ export default function LiveHubScreen({ navigation }: any) {
           style={{
             borderWidth: 1,
             borderRadius: 18,
-            borderColor: COLORS.border,
+            borderColor: palette.border,
             padding: 16,
             marginBottom: 18,
-            backgroundColor: COLORS.surface,
+            backgroundColor: palette.card,
           }}
         >
           <Text
             style={{
               fontSize: 16,
               fontWeight: "900",
-              color: COLORS.text,
+              color: palette.text,
               marginBottom: 6,
             }}
           >

@@ -99,20 +99,20 @@ export default function LeaderboardScreen() {
         const topChallengeMapped = (challengeRows as any[])
           .slice(0, 10)
           .map((challenge) => {
-            const owner = profileMap.get(challenge.user_id);
-            return {
-              id: challenge.id,
-              title: challenge.title,
-              sport: challenge.sport,
-              ownerPseudo:
-                owner?.pseudo ||
-                challenge.pseudo ||
-                `Joueur ${challenge.user_id.slice(0, 6)}`,
-              territory: getDepartmentLabel(owner?.department || "") || owner?.department || "N/A",
-              created_at: challenge.created_at,
-              bet: challenge.bet_amount || 0,
-            };
-          });
+              const owner = profileMap.get(challenge.user_id);
+              return {
+                id: challenge.id,
+                title: challenge.title,
+                sport: challenge?.sport || "",
+                ownerPseudo:
+                  owner?.pseudo ||
+                  challenge.pseudo ||
+                  `Joueur ${challenge.user_id.slice(0, 6)}`,
+                territory: getDepartmentLabel(owner?.department || "") || owner?.department || "N/A",
+                created_at: challenge.created_at,
+                bet: challenge.bet_amount || 0,
+              };
+            });
         setTopChallenges(topChallengeMapped);
       } else {
         setDeptStats([]);
@@ -259,7 +259,7 @@ export default function LeaderboardScreen() {
           {challenge.title}
         </Text>
         <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
-          Sport : {challenge.sport}
+          Sport : {challenge.sport || ""}
         </Text>
         <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
           Créateur : {challenge.ownerPseudo}

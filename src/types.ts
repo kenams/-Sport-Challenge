@@ -66,3 +66,23 @@ export interface UserProfile {
   department?: string | null;
   allow_inter_department?: boolean | null;
 }
+
+export type RouletteStatus =
+  | "pending"
+  | "challenge_created"
+  | "completed"
+  | "penalized";
+
+export interface RouletteDuel {
+  id: number;
+  week_id: string;
+  player_a: string;
+  player_b: string;
+  sport: string;
+  status: RouletteStatus;
+  deadline: string;
+  created_at: string;
+  challenge_id?: number | null;
+  winner_id?: string | null;
+  penalty_applied?: boolean;
+}

@@ -1,28 +1,25 @@
 // src/theme.ts
 
 export const COLORS = {
-  background: "#03050C",
-  surface: "#0B1020",
-  card: "#141A2D",
-  text: "#F8FAFC",
-  textMuted: "#94A3B8",
-  border: "rgba(148,163,184,0.25)",
-  primary: "#FACC15",
-  accent: "#FF6B00",
+  // Aggressive / metallic base theme
+  background: "#07070A",
+  surface: "#0D0F12",
+  card: "#111316",
+  text: "#F4F6F8",
+  textMuted: "#9EA3A6",
+  border: "rgba(255,255,255,0.06)",
+  primary: "#FF3B30", // neon red
+  accent: "#FF6B00", // neon orange
   success: "#34D399",
   danger: "#F87171",
-  
-  // New vibrant colors for better UI
-  blue: "#0EA5E9",
-  purple: "#A855F7",
-  pink: "#EC4899",
-  green: "#10B981",
-  orange: "#F97316",
-  red: "#EF4444",
-  yellow: "#FBBF24",
-  cyan: "#06B6D4",
-  indigo: "#6366F1",
-  lime: "#84CC16",
+
+  // Supporting vivid accents
+  neonYellow: "#FACC15",
+  neonCyan: "#06B6D4",
+  neonPurple: "#A855F7",
+  neonPink: "#EC4899",
+  neonBlue: "#0EA5E9",
+  neonGreen: "#10B981",
 };
 
 export type SportPalette = {
@@ -100,18 +97,25 @@ export const SPORT_PALETTES: Record<string, SportPalette> = {
     text: "#D3FFE7",
   },
   running: {
-    background: "#04101C",
-    card: "#0A1D2C",
-    border: "#38BDF8",
-    accent: "#0EA5E9",
-    text: "#E0F2FE",
+    background: "#0E1116",
+    card: "#1A1E26",
+    border: "#4B5563",
+    accent: "#9CA3AF",
+    text: "#F3F4F6",
+  },
+  run: {
+    background: "#0E1116",
+    card: "#1A1E26",
+    border: "#4B5563",
+    accent: "#9CA3AF",
+    text: "#F3F4F6",
   },
   course: {
-    background: "#04101C",
-    card: "#0A1D2C",
-    border: "#38BDF8",
-    accent: "#0EA5E9",
-    text: "#E0F2FE",
+    background: "#0E1116",
+    card: "#1A1E26",
+    border: "#4B5563",
+    accent: "#9CA3AF",
+    text: "#F3F4F6",
   },
   corde: {
     background: "#1A0228",
@@ -205,6 +209,18 @@ export const SPORT_COLORS: Record<string, string> = Object.entries(
   acc[key] = palette.accent;
   return acc;
 }, {} as Record<string, string>);
+
+// Metallic / greyscale palette for login or special screens
+export const METAL_PALETTE = {
+  background: "#1F2226",
+  surface: "#232629",
+  card: "#2B2F33",
+  text: "#E6E9EB",
+  textMuted: "#9EA3A6",
+  border: "rgba(190,195,200,0.12)",
+  primary: "#B0B6BA",
+  accent: "#A7AEB3",
+};
 
 export const getSportPalette = (sport?: string): SportPalette => {
   if (!sport) return SPORT_PALETTES.default;

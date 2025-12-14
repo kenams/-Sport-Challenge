@@ -296,6 +296,7 @@ export default function ArenaHistoryScreen() {
               borderWidth: 1,
               borderColor: typeColor,
               marginRight: 8,
+              backgroundColor: typeColor + "11",
             }}
           >
             <Text

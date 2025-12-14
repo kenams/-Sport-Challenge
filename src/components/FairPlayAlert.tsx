@@ -1,7 +1,7 @@
 // src/components/FairPlayAlert.tsx
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
-import { COLORS } from "../theme";
+import { COLORS, getSportPalette, SportPalette } from "../theme";
 
 type Props = {
   score: number;
@@ -9,6 +9,8 @@ type Props = {
   message?: string;
   onCtaPress?: () => void;
   ctaLabel?: string;
+  sport?: string | null;
+  paletteOverride?: SportPalette;
 };
 
 export default function FairPlayAlert({
@@ -17,20 +19,24 @@ export default function FairPlayAlert({
   message,
   onCtaPress,
   ctaLabel = "Améliorer mon fair-play",
+  sport,
+  paletteOverride,
 }: Props) {
   if (score >= threshold) {
     return null;
   }
 
+  const palette = paletteOverride || getSportPalette(sport || undefined);
+
   return (
     <View
       style={{
         borderWidth: 1,
-        borderColor: COLORS.danger,
+        borderColor: palette.border || COLORS.danger,
         borderRadius: 18,
         padding: 16,
         marginBottom: 18,
-        backgroundColor: "rgba(239,68,68,0.15)",
+        backgroundColor: palette.card,
       }}
     >
       <Text
@@ -45,7 +51,7 @@ export default function FairPlayAlert({
       </Text>
       <Text
         style={{
-          color: COLORS.text,
+          color: palette.text,
           fontSize: 13,
           marginBottom: 8,
         }}

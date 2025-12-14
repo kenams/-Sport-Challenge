@@ -252,6 +252,7 @@ export default function ImpitoyableDashboard({ navigation }: any) {
               label="Page Live"
               onPress={() => navigation.navigate("LiveHub")}
               size="sm"
+              color={COLORS.neonCyan}
             />
             <AppButton
               label="Rivalité"

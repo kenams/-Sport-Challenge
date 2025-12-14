@@ -12,8 +12,9 @@ import {
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
-import { COLORS } from "../theme";
+import { COLORS, SportPalette } from "../theme";
 import { ARENA_FAIR_PLAY_THRESHOLD } from "../services/arenaLive";
+import { useSportTheme } from "../context/SportThemeContext";
 
 type WalletRow = {
   user_id: string;
@@ -186,6 +187,19 @@ export default function ShopScreen() {
 
   const [dailyInfo, setDailyInfo] = useState<DailyRow | null>(null);
   const [canClaimDaily, setCanClaimDaily] = useState(false);
+  const { palette, resolvedSport } = useSportTheme();
+  const themedCard = useCallback(
+    (theme: CardTheme) => [
+      card(theme),
+      {
+        borderColor:
+          theme === "accent" ? palette.accent : palette.border,
+        backgroundColor:
+          theme === "accent" ? palette.background : palette.card,
+      },
+    ],
+    [palette]
+  );
 
   const loadData = useCallback(async () => {
     try {
@@ -541,9 +555,9 @@ const handleBuyTicket = async (offer: TicketOffer) => {
 
   if (loading) {
     return (
-      <ScreenContainer>
+      <ScreenContainer sport={resolvedSport || undefined}>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
+          <ActivityIndicator size="large" color={palette.accent} />
         </View>
       </ScreenContainer>
     );
@@ -554,7 +568,7 @@ const handleBuyTicket = async (offer: TicketOffer) => {
     : "Récompense déjà prise aujourd'hui";
 
   return (
-    <ScreenContainer>
+    <ScreenContainer sport={resolvedSport || undefined}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -563,7 +577,7 @@ const handleBuyTicket = async (offer: TicketOffer) => {
           style={{
             fontSize: 24,
             fontWeight: "900",
-            color: COLORS.text,
+            color: palette.text,
             marginBottom: 8,
           }}
         >
@@ -573,32 +587,32 @@ const handleBuyTicket = async (offer: TicketOffer) => {
         <Text
           style={{
             fontSize: 13,
-            color: COLORS.textMuted,
+            color: palette.text,
             marginBottom: 16,
           }}
         >
           Packs de coins, badges impitoyables, tickets Arena : toute l’économie IMMORTAL-K.
         </Text>
 
-        <View style={card("primary")}>
-          <Text style={cardTitle}>Soldes</Text>
-          <Text style={cardMetric}>{coins} coins</Text>
-          <Text style={cardMuted}>Pseudo : {pseudo || "Joueur"}</Text>
+        <View style={themedCard("primary")}>
+          <Text style={[cardTitle, { color: palette.text }]}>Soldes</Text>
+          <Text style={[cardMetric, { color: palette.accent }]}>{coins} coins</Text>
+          <Text style={[cardMuted, { color: palette.text }]} >Pseudo : {pseudo || "Joueur"}</Text>
         </View>
 
-        <View style={card("neutral")}>
-          <Text style={cardTitle}>Statut joueur</Text>
-          <Text style={cardMuted}>
+        <View style={themedCard("neutral")}>
+          <Text style={[cardTitle, { color: palette.text }]}>Statut joueur</Text>
+          <Text style={[cardMuted, { color: palette.text }]}>
             Niveau {playerLevel} • Points {playerPoints}
           </Text>
-          <Text style={cardMuted}>
+          <Text style={[cardMuted, { color: palette.text }]}>
             Fair-play : {fairPlayScore}/100 (seuil Arena {ARENA_FAIR_PLAY_THRESHOLD}+)
           </Text>
         </View>
 
-        <View style={card(canClaimDaily ? "accent" : "neutral")}>
-          <Text style={cardTitle}>Récompense quotidienne</Text>
-          <Text style={cardMuted}>
+        <View style={themedCard(canClaimDaily ? "accent" : "neutral")}>
+          <Text style={[cardTitle, { color: palette.text }]}>Récompense quotidienne</Text>
+          <Text style={[cardMuted, { color: palette.text }]}>
             Bonus actuel : {DAILY_REWARD_AMOUNT} coins. Streak :{" "}
             {dailyInfo?.streak || 0} jour(s).
           </Text>
@@ -611,14 +625,14 @@ const handleBuyTicket = async (offer: TicketOffer) => {
               paddingVertical: 12,
               borderRadius: 999,
               alignItems: "center",
-              backgroundColor: canClaimDaily ? COLORS.primary : "#111827",
+              backgroundColor: canClaimDaily ? palette.accent : palette.background,
             }}
           >
             <Text
               style={{
                 fontSize: 13,
                 fontWeight: "800",
-                color: canClaimDaily ? "#050505" : COLORS.textMuted,
+                color: canClaimDaily ? "#050505" : palette.text,
               }}
             >
               {processing ? "Traitement..." : dailyLabel}
@@ -626,7 +640,7 @@ const handleBuyTicket = async (offer: TicketOffer) => {
           </TouchableOpacity>
         </View>
 
-        <Text style={sectionTitle}>Packs de coins (fictifs)</Text>
+        <Text style={[sectionTitle, { color: palette.text }]}>Packs de coins (fictifs)</Text>
         {COIN_OFFERS.map((offer) => (
           <ShopCard
             key={offer.id}
@@ -637,10 +651,11 @@ const handleBuyTicket = async (offer: TicketOffer) => {
             highlight={offer.highlight}
             onPress={() => handleBuyCoins(offer)}
             disabled={processing}
+            palette={palette}
           />
         ))}
 
-        <Text style={sectionTitle}>Boost Fair-Play</Text>
+        <Text style={[sectionTitle, { color: palette.text }]}>Boost Fair-Play</Text>
         {BOOSTS.map((boost) => (
           <ShopCard
             key={boost.id}
@@ -650,10 +665,11 @@ const handleBuyTicket = async (offer: TicketOffer) => {
             footer={`+${boost.rewardFairPlay} fair-play`}
             onPress={() => handleBuyBoost(boost)}
             disabled={processing}
+            palette={palette}
           />
         ))}
 
-        <Text style={sectionTitle}>Badges / Cosmétiques</Text>
+        <Text style={[sectionTitle, { color: palette.text }]}>Badges / Cosmétiques</Text>
         {BADGES.map((badge) => (
           <ShopCard
             key={badge.id}
@@ -663,10 +679,11 @@ const handleBuyTicket = async (offer: TicketOffer) => {
             badgeColor={badge.color}
             footer="Débloque un style unique (fictif)."
             disabled
+            palette={palette}
           />
         ))}
 
-        <Text style={sectionTitle}>Tickets Arena (fictifs)</Text>
+        <Text style={[sectionTitle, { color: palette.text }]}>Tickets Arena (fictifs)</Text>
         {TICKETS.map((ticket) => (
           <ShopCard
             key={ticket.id}
@@ -676,10 +693,11 @@ const handleBuyTicket = async (offer: TicketOffer) => {
             footer={`Exigence : ${ticket.requirements} • Récompense +${ticket.rewardPoints} pts`}
             onPress={() => handleBuyTicket(ticket)}
             disabled={processing}
+            palette={palette}
           />
         ))}
 
-        <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 18 }}>
+        <Text style={{ fontSize: 11, color: palette.text, marginTop: 18, opacity: 0.8 }}>
           Remarque : tout est fictif. Cela te permet de tester l’économie (coins, paris, punitions, classement) sans réel paiement.
         </Text>
       </ScrollView>
@@ -740,6 +758,7 @@ type ShopCardProps = {
   badgeColor?: string;
   onPress?: () => void;
   disabled?: boolean;
+  palette: SportPalette;
 };
 
 function ShopCard({
@@ -751,6 +770,7 @@ function ShopCard({
   badgeColor,
   onPress,
   disabled,
+  palette,
 }: ShopCardProps) {
   return (
     <TouchableOpacity
@@ -762,8 +782,8 @@ function ShopCard({
         padding: 14,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: highlight ? COLORS.primary : COLORS.border,
-        backgroundColor: highlight ? "#111827" : "#020617",
+        borderColor: highlight ? palette.accent : palette.border,
+        backgroundColor: highlight ? palette.background : palette.card,
         opacity: disabled ? 0.65 : 1,
       }}
     >
@@ -778,7 +798,7 @@ function ShopCard({
           style={{
             fontSize: 15,
             fontWeight: "800",
-            color: COLORS.text,
+            color: palette.text,
           }}
         >
           {title}
@@ -788,7 +808,7 @@ function ShopCard({
             paddingVertical: 4,
             paddingHorizontal: 10,
             borderRadius: 999,
-            backgroundColor: badgeColor || COLORS.primary,
+            backgroundColor: badgeColor || palette.accent,
           }}
         >
           <Text
@@ -806,7 +826,7 @@ function ShopCard({
       <Text
         style={{
           fontSize: 12,
-          color: COLORS.textMuted,
+          color: palette.text,
           marginBottom: 8,
         }}
       >
@@ -816,7 +836,7 @@ function ShopCard({
       <Text
         style={{
           fontSize: 12,
-          color: COLORS.text,
+          color: palette.text,
           opacity: 0.8,
         }}
       >

@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   ViewStyle,
 } from "react-native";
-import { COLORS } from "../theme";
+import { COLORS, getSportPalette } from "../theme";
 
 type Props = {
   label: string;
@@ -17,6 +17,9 @@ type Props = {
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;
   size?: "md" | "sm";
+  color?: string; // background or accent color for the button
+  textColor?: string; // label color override
+  sport?: string; // optional sport key to auto-derive color
 };
 
 export default function AppButton({
@@ -27,10 +30,35 @@ export default function AppButton({
   disabled,
   style,
   size = "md",
+  color,
+  textColor,
+  sport,
 }: Props) {
   const isGhost = variant === "ghost";
   const baseStyle = isGhost ? styles.ghost : styles.primary;
   const sizeStyle = size === "sm" ? styles.small : null;
+  // derive colors: priority textColor > color > sport palette > defaults
+  let derivedColor = color;
+  let derivedTextColor = textColor;
+  if (!derivedColor && sport) {
+    const p = getSportPalette(sport);
+    derivedColor = p.accent;
+    derivedTextColor = derivedTextColor || p.text;
+  }
+  // Ensure a visible default color so navigation buttons remain themed
+  if (!derivedColor) {
+    derivedColor = COLORS.primary;
+  }
+  if (typeof __DEV__ !== "undefined" && __DEV__) {
+    try {
+      // eslint-disable-next-line no-console
+      console.log("AppButton debug:", { label, sport, derivedColor, derivedTextColor });
+    } catch (e) {}
+  }
+  const overrideStyle: StyleProp<ViewStyle> = isGhost
+    ? { borderColor: derivedColor ? `${derivedColor}44` : undefined }
+    : { backgroundColor: derivedColor || undefined };
+  const overrideTextColor = derivedTextColor || (isGhost ? derivedColor || COLORS.primary : "#050505");
 
   return (
     <TouchableOpacity
@@ -41,18 +69,19 @@ export default function AppButton({
         styles.button,
         baseStyle,
         sizeStyle,
+        overrideStyle,
         disabled ? { opacity: 0.6 } : null,
         style,
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isGhost ? COLORS.text : "#050505"} />
+        <ActivityIndicator color={overrideTextColor} />
       ) : (
         <Text
           style={[
             styles.label,
             size === "sm" ? styles.labelSmall : null,
-            { color: isGhost ? COLORS.text : "#050505" },
+            { color: overrideTextColor },
           ]}
         >
           {label}
@@ -79,7 +108,7 @@ const styles = StyleSheet.create({
   },
   ghost: {
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: COLORS.primary + "44",
     backgroundColor: "transparent",
   },
   label: {

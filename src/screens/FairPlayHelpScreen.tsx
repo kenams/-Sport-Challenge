@@ -214,20 +214,4 @@ const styles = StyleSheet.create({
     gap: 12,
   },
 });
-
-        <Text
-          style={{
-            color: COLORS.textMuted,
-            fontSize: 12,
-            marginBottom: 20,
-          }}
-        >
-          Bonus : laisse un admin vérifier tes preuves sur Discord pour un boost
-          express (+5).
-        </Text>
-
-        <AppButton label="Retour" variant="ghost" onPress={() => navigation.goBack()} />
-      </ScrollView>
-    </ScreenContainer>
-  );
-}
+ 

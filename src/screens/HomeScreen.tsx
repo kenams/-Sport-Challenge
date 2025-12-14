@@ -15,13 +15,18 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
-import { Challenge, UserProfile, GenderValue } from "../types";
+import {
+  Challenge,
+  UserProfile,
+  GenderValue,
+  RouletteDuel,
+} from "../types";
 import ChallengeCard from "../components/ChallengeCard";
 import AnimatedPress from "../components/AnimatedPress";
 import AppButton from "../components/AppButton";
 import SportTag from "../components/SportTag";
-import { COLORS, getSportPalette } from "../theme";
-import { feedbackTap } from "../utils/feedback";
+import { COLORS, getSportPalette, SportPalette } from "../theme";
+import { feedbackTap, playSportFeedback } from "../utils/feedback";
 import { fetchProfilesMap } from "../services/profile";
 import { getDepartmentLabel } from "../utils/departments";
 import {
@@ -31,15 +36,18 @@ import {
 import FairPlayAlert from "../components/FairPlayAlert";
 import { ARENA_FAIR_PLAY_THRESHOLD } from "../services/arenaLive";
 import { getFairPlayTier } from "../utils/fairPlay";
+import { useSportTheme } from "../context/SportThemeContext";
+import RouletteBanner from "../components/RouletteBanner";
+import { fetchRouletteAssignments } from "../services/roulette";
 
 const HomeScreen = ({ navigation }: any) => {
+  console.log("HomeScreen render — aggressive theme active");
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [profilesMap, setProfilesMap] = useState<Map<string, UserProfile>>(
     new Map()
   );
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [fairPlayScore, setFairPlayScore] = useState<number | null>(null);
   const [playerLevel, setPlayerLevel] = useState<number | null>(null);
   const [playerGender, setPlayerGender] = useState<GenderValue>("male");
@@ -47,6 +55,18 @@ const HomeScreen = ({ navigation }: any) => {
   const [allowInterDepartment, setAllowInterDepartment] = useState(true);
   const [playerDepartment, setPlayerDepartment] = useState("75");
   const [showRivalryIntro, setShowRivalryIntro] = useState(false);
+  const [rouletteDuels, setRouletteDuels] = useState<RouletteDuel[]>([]);
+  const [rouletteProfiles, setRouletteProfiles] = useState<
+    Map<string, UserProfile>
+  >(new Map());
+  const [rouletteLoading, setRouletteLoading] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const {
+    palette: themePalette,
+    setActiveSport,
+    resolvedSport,
+  } = useSportTheme();
+  const selectedDomain = resolvedSport || null;
 
   const loadChallenges = useCallback(async () => {
     try {
@@ -107,7 +127,12 @@ const HomeScreen = ({ navigation }: any) => {
     setAllowMixedChallenges(metaAllowMixed);
     setAllowInterDepartment(metaAllowInterDept);
     setPlayerDepartment(metaDepartment);
-    if (!uid) return;
+    setCurrentUserId(uid || null);
+    if (!uid) {
+      setRouletteDuels([]);
+      setRouletteProfiles(new Map());
+      return;
+    }
     const { data } = await supabase
       .from("players_stats")
       .select("fair_play_score, level")
@@ -119,14 +144,35 @@ const HomeScreen = ({ navigation }: any) => {
     }
   }, []);
 
+  const loadRouletteAssignments = useCallback(async () => {
+    if (!currentUserId) return;
+    try {
+      setRouletteLoading(true);
+      const { duels, profilesMap } = await fetchRouletteAssignments(
+        currentUserId
+      );
+      setRouletteDuels(duels);
+      setRouletteProfiles(profilesMap);
+    } catch (err) {
+      console.log("ROULETTE ASSIGNMENTS ERROR", err);
+    } finally {
+      setRouletteLoading(false);
+    }
+  }, [currentUserId]);
+
   useEffect(() => {
     fetchPlayerContext();
   }, [fetchPlayerContext]);
 
+  useEffect(() => {
+    loadRouletteAssignments();
+  }, [loadRouletteAssignments]);
+
   useFocusEffect(
     useCallback(() => {
       fetchPlayerContext();
-    }, [fetchPlayerContext])
+      loadRouletteAssignments();
+    }, [fetchPlayerContext, loadRouletteAssignments])
   );
 
   const handleDismissRivalryIntro = async () => {
@@ -148,6 +194,7 @@ const HomeScreen = ({ navigation }: any) => {
   const onRefresh = async () => {
     setRefreshing(true);
     await loadChallenges();
+    await loadRouletteAssignments();
     setRefreshing(false);
   };
 
@@ -292,7 +339,7 @@ const HomeScreen = ({ navigation }: any) => {
       feedbackTap();
 
       const message = [
-        `Viens me chercher sur ${challenge.sport} !`,
+        `Viens me chercher sur ${challenge?.sport || "?"} !`,
         "",
         `Titre : ${challenge.title}`,
         `Objectif : ${challenge.target_value} ${challenge.unit}`,
@@ -309,7 +356,50 @@ const HomeScreen = ({ navigation }: any) => {
     }
   };
 
+  const handleDomainPress = useCallback(
+    (sportKey: string, isActive: boolean) => {
+      const nextSport = isActive ? null : sportKey;
+      setActiveSport(nextSport);
+      if (nextSport) {
+        playSportFeedback(nextSport);
+      } else {
+        feedbackTap();
+      }
+    },
+    [setActiveSport]
+  );
+
+  const handleRouletteAction = useCallback(
+    (duel: RouletteDuel, opponentId: string) => {
+      if (!duel || !opponentId) return;
+      if (duel.challenge_id && duel.status !== "penalized") {
+        navigation.navigate("ChallengeDetail", {
+          challengeId: duel.challenge_id,
+        });
+        return;
+      }
+      const opponent = rouletteProfiles.get(opponentId);
+      navigation.navigate("CreateChallenge", {
+        rouletteDuelId: duel.id,
+        rouletteSport: duel.sport,
+        rouletteOpponent: opponentId,
+        rouletteOpponentPseudo:
+          opponent?.pseudo ||
+          `Joueur ${opponentId.slice(0, 4)}...${opponentId.slice(-2)}`,
+      });
+    },
+    [navigation, rouletteProfiles]
+  );
+
+  const showRouletteRules = useCallback(() => {
+    Alert.alert(
+      "Roulette russe",
+      "Chaque lundi matin, l'app sélectionne des duels au hasard entre joueurs de niveau proche. Tu dois publier ta vidéo avant la deadline ou tu perds automatiquement 10 points de fair-play et 20 points de classement."
+    );
+  }, []);
+
   const renderItem = ({ item }: { item: Challenge }) => {
+    const palette = getSportPalette(item?.sport || "");
     const requiredLevel = item.min_level || item.level_required || 1;
     const currentLevel = playerLevel ?? 1;
     const canPlay = currentLevel >= requiredLevel;
@@ -390,7 +480,7 @@ const HomeScreen = ({ navigation }: any) => {
                 </Text>
               )}
             </View>
-            <SportTag sport={item.sport} />
+              <SportTag sport={item?.sport || ""} />
           </View>
 
           {!canPlay && (
@@ -399,6 +489,7 @@ const HomeScreen = ({ navigation }: any) => {
               variant="ghost"
               onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Coach"}}]})}
               style={{ marginTop: 10 }}
+              sport={item?.sport || undefined}
             />
           )}
           {departmentBlocked && (
@@ -407,6 +498,7 @@ const HomeScreen = ({ navigation }: any) => {
               variant="ghost"
               onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
               style={{ marginTop: 10 }}
+              sport={item?.sport || undefined}
             />
           )}
           {genderMismatch && (
@@ -415,6 +507,7 @@ const HomeScreen = ({ navigation }: any) => {
               variant="ghost"
               onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
               style={{ marginTop: 10 }}
+              sport={item?.sport || undefined}
             />
           )}
           <View style={styles.challengeActions}>
@@ -422,11 +515,15 @@ const HomeScreen = ({ navigation }: any) => {
               label="Partager"
               variant="ghost"
               size="sm"
+              color={palette.accent}
+              textColor={palette.text}
               onPress={() => handleShare(item)}
             />
             <AppButton
               label="Voir +"
               size="sm"
+              color={palette.accent}
+              textColor={palette.text}
               onPress={() => handleOpenDetail(item)}
             />
           </View>
@@ -455,12 +552,30 @@ const HomeScreen = ({ navigation }: any) => {
     return counts;
   }, [challenges, profilesMap]);
 
-  const renderHeader = () => (
-    <View style={{ marginBottom: 20 }}>
-      <View style={styles.questCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.questTitle}>Pas au niveau ?</Text>
-          <Text style={styles.questSubtitle}>
+    const renderHeader = () => (
+      <View style={{ marginBottom: 20 }}>
+        {currentUserId && (
+          <RouletteBanner
+            duels={rouletteDuels}
+            currentUserId={currentUserId}
+            profilesMap={rouletteProfiles}
+            loading={rouletteLoading}
+            onPressDuel={handleRouletteAction}
+            onShowRules={showRouletteRules}
+          />
+        )}
+        <View
+          style={[
+            styles.questCard,
+            {
+              borderColor: themePalette.border,
+              backgroundColor: themePalette.card,
+            },
+          ]}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.questTitle}>Pas au niveau ?</Text>
+            <Text style={styles.questSubtitle}>
             Boucle les ordres du coach et chope ta récompense du jour pour
             grimper plus vite que les autres.
           </Text>
@@ -480,7 +595,15 @@ const HomeScreen = ({ navigation }: any) => {
           />
         </View>
       </View>
-      <View style={styles.liveCard}>
+        <View
+          style={[
+            styles.liveCard,
+            {
+              borderColor: themePalette.border,
+              backgroundColor: themePalette.card,
+            },
+          ]}
+        >
         <View style={{ flex: 1 }}>
           <Text style={styles.liveTitle}>Arena Live en accès direct</Text>
           <Text style={styles.liveSubtitle}>
@@ -491,9 +614,18 @@ const HomeScreen = ({ navigation }: any) => {
           label="Page Live"
           onPress={() => navigation.navigate("LiveHub")}
           style={{ marginTop: 10 }}
-        />
+            sport={selectedDomain || undefined}
+          />
       </View>
-      <View style={styles.heroCard}>
+        <View
+          style={[
+            styles.heroCard,
+            {
+              borderColor: themePalette.border,
+              backgroundColor: themePalette.card,
+            },
+          ]}
+        >
         <View style={{ flex: 1 }}>
           <Text style={styles.heroTitle}>Défis brûlants</Text>
           <Text style={styles.heroSubtitle}>
@@ -525,9 +657,9 @@ const HomeScreen = ({ navigation }: any) => {
             )}
           </View>
         </View>
-        <View style={styles.heroCTA}>
-          <Text style={styles.heroCTAtext}>Balance le feu</Text>
-        </View>
+            <View style={styles.heroCTA}>
+              <Text style={styles.heroCTAtext}>Balance le feu 🔥</Text>
+            </View>
       </View>
       <View style={styles.heroLinksContainer}>
         <TouchableOpacity
@@ -573,19 +705,39 @@ const HomeScreen = ({ navigation }: any) => {
         </View>
       )}
 
-      <View style={styles.preferenceBanner}>
+      <View
+        style={[
+          styles.preferenceBanner,
+          {
+            borderColor: themePalette.border,
+            backgroundColor: themePalette.card,
+          },
+        ]}
+      >
         <View style={{ flex: 1 }}>
-          <Text style={styles.preferenceTitle}>
+          <Text
+            style={[styles.preferenceTitle, { color: themePalette.text }]}
+          >
             Mode {allowMixedChallenges ? "mixte" : "ligue dédiée"}
           </Text>
-          <Text style={styles.preferenceSubtitle}>
+          <Text
+            style={[
+              styles.preferenceSubtitle,
+              { color: themePalette.text },
+            ]}
+          >
             {allowMixedChallenges
               ? "Tu peux défier tout le monde. Ajuste dans ton profil si tu veux te concentrer sur ta ligue."
               : `On te présente d'abord les défis ${
                   playerGender === "female" ? "Femme" : "Homme"
                 }. Active le mixte pour viser tout le monde.`}
           </Text>
-          <Text style={styles.preferenceSubtitle}>
+          <Text
+            style={[
+              styles.preferenceSubtitle,
+              { color: themePalette.text },
+            ]}
+          >
             {allowInterDepartment
               ? `Rivalité ouverte : tous les territoires peuvent te provoquer (tu représentes ${
                   playerTerritoryLabel || playerDepartment
@@ -597,20 +749,31 @@ const HomeScreen = ({ navigation }: any) => {
         </View>
         <TouchableOpacity
           onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Profil"}}]})}
-          style={styles.preferenceButton}
+          style={[
+            styles.preferenceButton,
+            {
+              borderColor: themePalette.border,
+              backgroundColor: themePalette.background,
+            },
+          ]}
         >
-          <Text style={styles.preferenceButtonText}>Modifier</Text>
+          <Text
+            style={[styles.preferenceButtonText, { color: themePalette.text }]}
+          >
+            Modifier
+          </Text>
         </TouchableOpacity>
       </View>
       <DepartmentBattleHeader
         playerDepartment={playerDepartment}
         scores={departmentScores}
         onPress={() => navigation.reset({index: 0, routes: [{name: "MainTabs", params: {screen: "Classement"}}]})}
+        palette={themePalette}
       />
       <Text
         style={{
           marginTop: 8,
-          color: COLORS.textMuted,
+          color: themePalette.text,
           fontSize: 12,
         }}
       >
@@ -622,17 +785,15 @@ const HomeScreen = ({ navigation }: any) => {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingVertical: 14 }}
       >
-        {featuredSports.map((sport) => {
-          const palette = getSportPalette(sport.key);
-          const isActive = selectedDomain === sport.key;
-          return (
-            <TouchableOpacity
-              key={sport.key}
-              onPress={() =>
-                setSelectedDomain(isActive ? null : sport.key)
-              }
-              activeOpacity={0.9}
-            >
+          {featuredSports.map((sport) => {
+            const palette = getSportPalette(sport.key);
+            const isActive = selectedDomain === sport.key;
+            return (
+              <TouchableOpacity
+                key={sport.key}
+                onPress={() => handleDomainPress(sport.key, isActive)}
+                activeOpacity={0.9}
+              >
               <View
                 style={[
                   styles.sportChip,
@@ -666,16 +827,18 @@ const HomeScreen = ({ navigation }: any) => {
           );
         })}
       </ScrollView>
-      {typeof fairPlayScore === "number" && (
-        <FairPlayAlert
-          score={fairPlayScore}
-          threshold={ARENA_FAIR_PLAY_THRESHOLD}
-          message="Tu es sous surveillance. Remonte ton fair-play pour accéder à l'Arena."
-          onCtaPress={() =>
-            navigation.navigate("FairPlayHelp")
-          }
-        />
-      )}
+        {typeof fairPlayScore === "number" && (
+          <FairPlayAlert
+            score={fairPlayScore}
+            threshold={ARENA_FAIR_PLAY_THRESHOLD}
+            message="Tu es sous surveillance. Remonte ton fair-play pour accéder à l'Arena."
+            onCtaPress={() =>
+              navigation.navigate("FairPlayHelp")
+            }
+            sport={selectedDomain || undefined}
+            paletteOverride={themePalette}
+          />
+        )}
     </View>
   );
 
@@ -753,14 +916,17 @@ const HomeScreen = ({ navigation }: any) => {
               Aucun defi pour cette categorie.
             </Text>
             {selectedDomain && (
-              <TouchableOpacity
-                style={{ marginTop: 8 }}
-                onPress={() => setSelectedDomain(null)}
-              >
-                <Text style={{ color: COLORS.primary, fontWeight: "700" }}>
-                  Retirer le filtre
-                </Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ marginTop: 8 }}
+                  onPress={() => {
+                    setActiveSport(null);
+                    feedbackTap();
+                  }}
+                >
+                  <Text style={{ color: COLORS.primary, fontWeight: "700" }}>
+                    Retirer le filtre
+                  </Text>
+                </TouchableOpacity>
             )}
           </View>
         }
@@ -781,7 +947,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.card,
   },
   challengeMetaRow: {
     flexDirection: "row",
@@ -808,7 +974,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.card,
     padding: 18,
     flexDirection: "row",
     gap: 16,
@@ -861,9 +1027,9 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.card,
   },
   badgeValue: {
-    color: COLORS.primary,
+    color: COLORS.neonYellow,
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "900",
   },
   badgeLabel: {
     color: COLORS.textMuted,
@@ -875,8 +1041,10 @@ const styles = StyleSheet.create({
   },
   heroCTAtext: {
     color: COLORS.primary,
-    fontWeight: "800",
+    fontWeight: "900",
     fontSize: 14,
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
   heroCTAHint: {
     color: COLORS.textMuted,
@@ -896,6 +1064,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
     marginRight: 8,
     marginBottom: 8,
+    backgroundColor: COLORS.surface,
   },
   heroLinkText: {
     color: COLORS.primary,
@@ -938,7 +1107,7 @@ const styles = StyleSheet.create({
   liveCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: "#111827",
+    backgroundColor: COLORS.card,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
@@ -956,7 +1125,7 @@ const styles = StyleSheet.create({
   onboardingCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.card,
     borderRadius: 18,
     padding: 16,
     marginBottom: 12,
@@ -974,7 +1143,7 @@ const styles = StyleSheet.create({
   rivalryCard: {
     borderWidth: 1,
     borderColor: COLORS.border,
-    backgroundColor: "#111827",
+    backgroundColor: COLORS.card,
     borderRadius: 18,
     padding: 16,
     marginTop: 12,
@@ -1030,12 +1199,14 @@ type DepartmentBattleProps = {
   playerDepartment: string;
   scores: Record<string, number>;
   onPress: () => void;
+  palette: SportPalette;
 };
 
 function DepartmentBattleHeader({
   playerDepartment,
   scores,
   onPress,
+  palette,
 }: DepartmentBattleProps) {
   const playerLabel =
     getDepartmentLabel(playerDepartment) || playerDepartment;
@@ -1048,19 +1219,29 @@ function DepartmentBattleHeader({
   const leaderScore = leader ? leader[1] : 0;
 
   return (
-    <TouchableOpacity style={styles.rivalryCard} onPress={onPress}>
+    <TouchableOpacity
+      style={[
+        styles.rivalryCard,
+        { borderColor: palette.border, backgroundColor: palette.card },
+      ]}
+      onPress={onPress}
+    >
       <View style={{ flex: 1 }}>
-        <Text style={styles.rivalryTitle}>
+        <Text style={[styles.rivalryTitle, { color: palette.text }]}>
           Rivalité Île-de-France / Tarn-et-Garonne
         </Text>
-        <Text style={styles.rivalrySubtitle}>
+        <Text
+          style={[styles.rivalrySubtitle, { color: palette.text }]}
+        >
           Ton territoire : {playerLabel} • score {playerScore}
         </Text>
-        <Text style={styles.rivalrySubtitle}>
+        <Text
+          style={[styles.rivalrySubtitle, { color: palette.text }]}
+        >
           Leader actuel : {leaderLabel} ({leaderScore} défis)
         </Text>
       </View>
-      <Text style={styles.rivalryCTA}>Voir</Text>
+      <Text style={[styles.rivalryCTA, { color: palette.accent }]}>Voir</Text>
     </TouchableOpacity>
   );
 }

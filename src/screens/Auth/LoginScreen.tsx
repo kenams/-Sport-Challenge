@@ -14,12 +14,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../supabase";
 import ScreenContainer from "../../components/ScreenContainer";
-import { COLORS } from "../../theme";
+import { COLORS, METAL_PALETTE as METAL } from "../../theme";
 import AppButton from "../../components/AppButton";
 
 const logoSource = require("../../../assets/immortal-k-logo.png");
 
 export default function LoginScreen({ navigation }: any) {
+  console.log("LoginScreen render — METAL_PALETTE active");
   const [pseudo, setPseudo] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -86,7 +87,7 @@ export default function LoginScreen({ navigation }: any) {
           <View style={styles.heroSection}>
             <Image source={logoSource} style={styles.heroLogo} />
             <Text style={styles.heroSubtitle}>
-              Coach sportif & motivation quotidienne
+              Coach sportif & motivation quotidienne — METAL TEST
             </Text>
             <View style={styles.heroStats}>
               <View style={styles.heroStat}>
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
   },
   heroSubtitle: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: METAL.textMuted,
     marginTop: 4,
     textAlign: "center",
   },
@@ -179,36 +180,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderColor: METAL.border,
+    backgroundColor: METAL.surface,
     minWidth: 110,
   },
   statValue: {
-    color: COLORS.primary,
+    color: METAL.primary,
     fontSize: 18,
     fontWeight: "800",
   },
   statLabel: {
-    color: COLORS.textMuted,
+    color: METAL.textMuted,
     fontSize: 11,
     marginTop: 2,
   },
   card: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: METAL.surface,
     borderRadius: 18,
     padding: 18,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: METAL.border,
     width: "100%",
   },
   cardTitle: {
     fontSize: 22,
     fontWeight: "900",
-    color: COLORS.text,
+    color: METAL.text,
     marginBottom: 4,
   },
   cardSubtitle: {
-    color: COLORS.textMuted,
+    color: METAL.textMuted,
     fontSize: 12,
     marginBottom: 18,
   },
@@ -216,18 +217,18 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   label: {
-    color: COLORS.text,
+    color: METAL.text,
     fontSize: 13,
     marginBottom: 6,
     fontWeight: "600",
   },
   input: {
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: METAL.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    color: COLORS.text,
-    backgroundColor: COLORS.card,
+    color: METAL.text,
+    backgroundColor: METAL.card,
   },
 });

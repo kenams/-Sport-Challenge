@@ -13,8 +13,8 @@ interface Props {
 }
 
 export default function ChallengeCard({ challenge, onPress, profile }: Props) {
-  const palette = getSportPalette(challenge.sport);
-  const domain = getSportDomain(challenge.sport);
+  const palette = getSportPalette(challenge?.sport || "");
+  const domain = getSportDomain(challenge?.sport || "");
   const domainPalette = getSportPalette(domain.paletteKey);
   const displayName =
     profile?.pseudo ||
@@ -117,8 +117,8 @@ export default function ChallengeCard({ challenge, onPress, profile }: Props) {
           fontWeight: "600",
         }}
       >
-        Sport : {challenge.sport}  |  Objectif : {challenge.target_value}{" "}
-        {challenge.unit}
+        Sport : {challenge?.sport || "-"}  |  Objectif : {challenge?.target_value}{" "}
+        {challenge?.unit}
       </Text>
     </TouchableOpacity>
   );

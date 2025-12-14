@@ -20,14 +20,9 @@ import { useIsFocused } from "@react-navigation/native";
 import { logNotification } from "../notifications";
 import { SPACING } from "../utils/layout";
 import { loadCameraModule } from "../utils/cameraCompat";
-import {
-  mediaDevices,
-  MediaStream,
-  RTCPeerConnection,
-  RTCIceCandidate,
-  RTCSessionDescription,
-  RTCView,
-} from "react-native-webrtc";
+import { useSportTheme } from "../context/SportThemeContext";
+// Load WebRTC dynamically (avoid bundling native-only modules into Expo Go)
+// We'll import `react-native-webrtc` at runtime when needed.
 
 type Props = {
   route: {
@@ -57,6 +52,7 @@ const ICE_SERVERS = [
 
 export default function ArenaLiveScreen({ route, navigation }: Props) {
   const { challengeId, mode = "live", role = "host", roomId } = route.params;
+  const { logSportSession } = useSportTheme();
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [sessionStatus, setSessionStatus] = useState<
     "idle" | "connecting" | "live"
@@ -84,12 +80,13 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
   >(null);
   const isFocused = useIsFocused();
   const sessionStatusRef = useRef<"idle" | "connecting" | "live">("idle");
-  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [localStream, setLocalStream] = useState<any | null>(null);
+  const [remoteStream, setRemoteStream] = useState<any | null>(null);
   const [webRtcError, setWebRtcError] = useState<string | null>(null);
+  const [rtcModule, setRtcModule] = useState<any | null>(null);
   const roomIdRef = useRef<string | null>(null);
   const hasSentOfferRef = useRef(false);
+  const peerConnectionRef = useRef<any | null>(null);
   const updatePrepStep = useCallback((index: number, value: boolean) => {
     setLivePrepStatus((prev) =>
       prev.map((val, idx) => (idx === index ? value : val))
@@ -100,7 +97,12 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
     if (peerConnectionRef.current) {
       return peerConnectionRef.current;
     }
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const RTCPeerConnectionClass = rtcModule?.RTCPeerConnection;
+    if (!RTCPeerConnectionClass) {
+      console.warn("WebRTC not available yet");
+      return null as any;
+    }
+    const pc = new RTCPeerConnectionClass({ iceServers: ICE_SERVERS });
     (pc as any).onicecandidate = (event: any) => {
       if (event.candidate && roomIdRef.current) {
         void sendSignal(roomIdRef.current, "candidate", event.candidate).catch(
@@ -123,9 +125,13 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
   const disposePeerConnection = useCallback(() => {
     if (peerConnectionRef.current) {
       const pc: any = peerConnectionRef.current;
-      pc.onicecandidate = null;
-      pc.ontrack = null;
-      pc.close();
+      try {
+        pc.onicecandidate = null;
+        pc.ontrack = null;
+        pc.close();
+      } catch (e) {
+        // ignore
+      }
       peerConnectionRef.current = null;
     }
   }, []);
@@ -145,10 +151,16 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
         return;
       }
       const pc = ensurePeerConnection();
+      if (!pc) return;
       try {
         if (signal.type === "offer" && !isHost) {
+          const RTCSessionDescriptionClass = rtcModule?.RTCSessionDescription;
+          if (!RTCSessionDescriptionClass) {
+            console.warn("RTCSessionDescription unavailable");
+            return;
+          }
           await pc.setRemoteDescription(
-            new RTCSessionDescription(signal.payload)
+            new RTCSessionDescriptionClass(signal.payload)
           );
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
@@ -158,13 +170,23 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
             ...prev,
           ]);
         } else if (signal.type === "answer" && isHost) {
+          const RTCSessionDescriptionClass = rtcModule?.RTCSessionDescription;
+          if (!RTCSessionDescriptionClass) {
+            console.warn("RTCSessionDescription unavailable");
+            return;
+          }
           await pc.setRemoteDescription(
-            new RTCSessionDescription(signal.payload)
+            new RTCSessionDescriptionClass(signal.payload)
           );
           setSignalLog((prev) => ["Réponse reçue, flux synchronisé.", ...prev]);
         } else if (signal.type === "candidate") {
           if (signal.payload) {
-            await pc.addIceCandidate(new RTCIceCandidate(signal.payload));
+            const RTCIceCandidateClass = rtcModule?.RTCIceCandidate;
+            if (RTCIceCandidateClass) {
+              await pc.addIceCandidate(new RTCIceCandidateClass(signal.payload));
+            } else {
+              console.warn("RTCIceCandidate unavailable");
+            }
           }
         }
       } catch (error) {
@@ -174,7 +196,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
         );
       }
     },
-    [currentUserId, ensurePeerConnection, isHost, room?.id]
+    [currentUserId, ensurePeerConnection, isHost, room?.id, rtcModule]
   );
 
   const startHostNegotiation = useCallback(async () => {
@@ -183,6 +205,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
     }
     try {
       const pc = ensurePeerConnection();
+      if (!pc) return;
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       await sendSignal(room.id, "offer", offer);
@@ -257,6 +280,16 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
           );
         }
       }
+
+      // Charger react-native-webrtc dynamiquement
+      try {
+        const rtc = await import("react-native-webrtc");
+        if (mounted) {
+          setRtcModule(rtc);
+        }
+      } catch (err) {
+        console.warn("react-native-webrtc not available in Expo Go (expected):", err);
+      }
     })();
     return () => {
       mounted = false;
@@ -291,7 +324,12 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
       return;
     }
     try {
-      const stream = await mediaDevices.getUserMedia({
+      const mediaDevicesAPI = rtcModule?.mediaDevices;
+      if (!mediaDevicesAPI) {
+        console.warn("mediaDevices API not available");
+        return;
+      }
+      const stream = await mediaDevicesAPI.getUserMedia({
         video: {
           facingMode: "user",
         },
@@ -623,6 +661,13 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
         `${isHost ? "Host" : "Guest"} connecte sur room ${targetRoom.id}`,
       ]);
       updateSessionStatus("live");
+      if (challenge?.sport) {
+        logSportSession({
+          sport: challenge.sport,
+          kind: "live_start",
+          timestamp: new Date().toISOString(),
+        });
+      }
       void logActivity(
         "arena_live_start",
         "Arena Live demarree (session reelle)"
@@ -643,7 +688,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
   const fairPlayTier = getFairPlayTier(fairPlayScore);
 
   return (
-    <ScreenContainer>
+    <ScreenContainer sport={challenge?.sport || undefined}>
       <ScrollView
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
@@ -652,7 +697,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
           style={{
             fontSize: 24,
             fontWeight: "900",
-            color: COLORS.text,
+            color: palette.text,
             marginBottom: 8,
           }}
         >
@@ -686,7 +731,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
             >
               {challenge.title}
             </Text>
-            <SportTag sport={challenge.sport} />
+            <SportTag sport={challenge?.sport || ""} />
             <Text
               style={{
                 color: palette.text,
@@ -757,11 +802,23 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
                 Ton flux
               </Text>
               {localStream ? (
-                <RTCView
-                  streamURL={localStream.toURL()}
-                  style={{ height: 180, borderRadius: 10 }}
-                  objectFit="cover"
-                />
+                (() => {
+                  const RTCViewComp = rtcModule?.RTCView;
+                  if (RTCViewComp) {
+                    return (
+                      <RTCViewComp
+                        streamURL={localStream.toURL()}
+                        style={{ height: 180, borderRadius: 10 }}
+                        objectFit="cover"
+                      />
+                    );
+                  }
+                  return (
+                    <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                      Flux local: affichage non supporté en Expo Go.
+                    </Text>
+                  );
+                })()
               ) : (
                 <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
                   En attente d'autorisation caméra/micro.
@@ -789,11 +846,23 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
                 Flux adverse
               </Text>
               {remoteStream ? (
-                <RTCView
-                  streamURL={remoteStream.toURL()}
-                  style={{ height: 180, borderRadius: 10 }}
-                  objectFit="cover"
-                />
+                (() => {
+                  const RTCViewComp = rtcModule?.RTCView;
+                  if (RTCViewComp) {
+                    return (
+                      <RTCViewComp
+                        streamURL={remoteStream.toURL()}
+                        style={{ height: 180, borderRadius: 10 }}
+                        objectFit="cover"
+                      />
+                    );
+                  }
+                  return (
+                    <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
+                      Flux distant: affichage non supporté en Expo Go.
+                    </Text>
+                  );
+                })()
               ) : (
                 <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
                   En attente de connexion de ton rival.
@@ -807,6 +876,8 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
               variant="ghost"
               onPress={requestPermissions}
               style={{ marginTop: 12 }}
+              color={palette.accent}
+              textColor={palette.text}
             />
           )}
         </View>
@@ -1010,6 +1081,7 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
           onPress={handleCreateLobby}
           loading={sessionStatus === "connecting"}
           disabled={sessionStatus === "live" || isFairPlayLocked}
+          sport={challenge?.sport || undefined}
         />
         {room && (
           <View style={{ marginTop: 14 }}>
@@ -1051,16 +1123,19 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
             label="Signaler triche"
             variant="ghost"
             onPress={handleReport}
+            sport={challenge?.sport || undefined}
           />
           <AppButton
             label="Tester la signalisation"
             variant="ghost"
             onPress={handleSendTestSignal}
+            sport={challenge?.sport || undefined}
           />
           <AppButton
             label="Fermer"
             variant="ghost"
             onPress={() => navigation.goBack()}
+            sport={challenge?.sport || undefined}
           />
         </View>
       </ScrollView>
