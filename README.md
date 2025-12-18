@@ -55,6 +55,36 @@ npm run web           # Expo web
 - `npm run cron:reminders` : script à lancer via un cron (ou service planifié) pour envoyer les notifications `live_reminder` 15 minutes avant une session programmée.
 - `npm run lint` / `npm run test` (si configuré plus tard).
 
+## Utilisation (rapide)
+
+- Démarrer l'application en mode développement :
+
+```bash
+npm install
+npm run start
+```
+
+- Tester sur un appareil Android connecté :
+
+```bash
+npm run android
+```
+
+- Variables d'environnement essentielles :
+
+```
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=  # nécessaire pour scripts admin
+```
+
+- Commandes utiles :
+  - `npm run start` : lance Metro / Expo
+  - `npm run android` / `npm run ios` : lance l'app sur un device via Expo
+  - `node scripts/checkFlows.js` : vérifie les flows critiques (requiert service role key)
+
+Conserver `schema_source.sql` et dumps de données dans un bucket sécurisé si vous effectuez des migrations.
+
 ## Structure
 
 - `src/screens` : écrans principaux (Home, Coach, LiveHub, etc.)
