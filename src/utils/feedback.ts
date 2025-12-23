@@ -23,7 +23,7 @@ const SOUND_SOURCES: Record<string, any> = {
 
 const DEFAULT_SOUND_KEY = "running";
 const loadedSounds: Record<string, Audio.Sound | null> = {};
-const loadingPromises: Record<string, Promise<Audio.Sound | null>> = {};
+const loadingPromises: Record<string, Promise<Audio.Sound | null> | undefined> = {};
 
 async function loadSportSound(key: string) {
   if (loadedSounds[key]) return loadedSounds[key];

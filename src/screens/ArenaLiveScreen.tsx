@@ -336,8 +336,8 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
         audio: true,
       });
       const pc = ensurePeerConnection();
-      const existingTracks = pc.getSenders().map((sender) => sender.track?.id);
-      stream.getTracks().forEach((track) => {
+      const existingTracks = pc.getSenders().map((sender: any) => sender.track?.id);
+      stream.getTracks().forEach((track: any) => {
         if (!existingTracks.includes(track.id)) {
           pc.addTrack(track, stream);
         }
@@ -493,10 +493,10 @@ export default function ArenaLiveScreen({ route, navigation }: Props) {
         void logActivity("arena_finished", "Arena Live terminee");
       }
       if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
+        localStream.getTracks().forEach((track: any) => track.stop());
       }
       if (remoteStream) {
-        remoteStream.getTracks().forEach((track) => track.stop());
+        remoteStream.getTracks().forEach((track: any) => track.stop());
       }
       disposePeerConnection();
     };

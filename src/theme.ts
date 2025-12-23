@@ -20,6 +20,15 @@ export const COLORS = {
   neonPink: "#EC4899",
   neonBlue: "#0EA5E9",
   neonGreen: "#10B981",
+  // legacy / convenience aliases used across the app
+  blue: "#0EA5E9",
+  cyan: "#06B6D4",
+  purple: "#A855F7",
+  pink: "#EC4899",
+  yellow: "#FACC15",
+  green: "#10B981",
+  red: "#FF3B30",
+  orange: "#FF6B00",
 };
 
 export type SportPalette = {

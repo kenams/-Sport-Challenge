@@ -68,7 +68,8 @@ export async function scheduleFavoriteSportPing(sport: string) {
         title: `🔥 ${normalized} en feu`,
         body: "Nouvelle activite detectee. Va voir les defis tout de suite.",
       },
-      trigger: { seconds: 5 },
+        // cast to any to satisfy differing expo-notifications types across SDKs
+      trigger: { seconds: 5 } as any,
     });
     await logNotification(
       {
@@ -91,7 +92,8 @@ export async function scheduleSportRoutineReminder(sport: string) {
         title: `Routine ${normalized}`,
         body: "Ta session est planifiée. Fais-le pour de vrai.",
       },
-      trigger: { seconds: 60 },
+        // cast to any to satisfy differing expo-notifications types across SDKs
+      trigger: { seconds: 60 } as any,
     });
   } catch (err) {
     console.log("SPORT ROUTINE REMINDER ERROR", err);

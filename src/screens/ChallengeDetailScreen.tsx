@@ -638,7 +638,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
 
   if (loading && !challenge) {
     return (
-      <ScreenContainer sport={challenge?.sport || undefined}>
+      <ScreenContainer sport={(challenge as any)?.sport}>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -650,7 +650,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
 
   if (!challenge) {
     return (
-      <ScreenContainer sport={challenge?.sport || undefined}>
+      <ScreenContainer sport={(challenge as any)?.sport}>
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
@@ -676,7 +676,7 @@ export default function ChallengeDetailScreen({ route, navigation }: Props) {
   const liveLocked = currentUserLevel < LIVE_MIN_LEVEL;
 
   return (
-    <ScreenContainer sport={challenge?.sport || undefined}>
+    <ScreenContainer sport={(challenge as any)?.sport}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 40 }}

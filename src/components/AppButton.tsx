@@ -12,7 +12,7 @@ import { COLORS, getSportPalette } from "../theme";
 type Props = {
   label: string;
   onPress: () => void;
-  variant?: "primary" | "ghost";
+  variant?: "primary" | "ghost" | "accent";
   loading?: boolean;
   disabled?: boolean;
   style?: StyleProp<ViewStyle>;

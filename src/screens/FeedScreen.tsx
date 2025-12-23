@@ -343,7 +343,7 @@ export default function FeedScreen({ navigation }: Props) {
   const isFavoriteSport =
     sportFilter !== "all" && favoriteSports.includes(sportFilter);
   const lastActivityLabel = sportProfileData?.lastActivity
-    ? getTypeLabel(sportProfileData.lastActivity.type)
+    ? getTypeLabel((sportProfileData.lastActivity as any).type)
     : null;
 
   const renderItem = ({ item }: { item: ActivityRow }) => {
@@ -705,7 +705,7 @@ export default function FeedScreen({ navigation }: Props) {
                   </Text>
                 </View>
               </View>
-              {sportProfileData.lastActivity && (
+              {(sportProfileData as any).lastActivity && (
                 <Text
                   style={[
                     styles.sportProfileFooter,
@@ -717,7 +717,7 @@ export default function FeedScreen({ navigation }: Props) {
                 >
                   Derniere activite : {lastActivityLabel} •{" "}
                   {new Date(
-                    sportProfileData.lastActivity.created_at
+                    (sportProfileData as any).lastActivity.created_at
                   ).toLocaleString("fr-FR")}
                 </Text>
               )}
