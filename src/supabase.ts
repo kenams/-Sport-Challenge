@@ -1,8 +1,13 @@
 // src/supabase.ts
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://sjnlilbsqecznpxbqukw.supabase.co";
-const SUPABASE_ANON_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbmxpbGJzcWVjem5weGJxdWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0ODg2MDksImV4cCI6MjA3OTA2NDYwOX0.q2-e3zRiXWDHVdj8mQoH036D7qgCgG6PuiV0hrvfIKU";
+const SUPABASE_URL = (process.env.EXPO_PUBLIC_SUPABASE_URL || "").trim();
+const SUPABASE_ANON_KEY = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "").trim();
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    "Supabase non configuré. Définis EXPO_PUBLIC_SUPABASE_URL et EXPO_PUBLIC_SUPABASE_ANON_KEY."
+  );
+}
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);

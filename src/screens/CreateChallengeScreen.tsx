@@ -1,403 +1,156 @@
 // src/screens/CreateChallengeScreen.tsx
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Button,
-  Alert,
-  Switch,
-  ScrollView,
-} from "react-native";
-import { Video, ResizeMode } from "expo-av";
-import * as ImagePicker from "expo-image-picker";
-import * as FileSystem from "expo-file-system/legacy";
-import { decode } from "base64-arraybuffer";
-
+import React from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import { supabase } from "../supabase";
-import { COLORS } from "../theme";
-import { feedbackError, feedbackSuccess, feedbackTap } from "../utils/feedback";
+import { COLORS, TYPO } from "../theme";
+import AppButton from "../components/AppButton";
 
-type WalletRow = {
-  user_id: string;
-  coins: number;
-};
+const KICKER = "CREATION";
+const TITLE = "Creer un defi";
+const SUBTITLE = "Lance un defi propre et motivant.";
+const CTA_PRIMARY = "Action";
+const CTA_SECONDARY = "Voir plus";
 
-export default function CreateChallengeScreen({ navigation, route }: any) {
-  const rematchSport = route?.params?.rematchSport || "";
-  const rematchTitle = route?.params?.rematchTitle || "";
-  const rematchBet = route?.params?.rematchBet || 0;
+const STATS = [{"label": "Defis actifs", "value": "12"}, {"label": "Categories", "value": "9"}, {"label": "Temps moyen", "value": "2 min"}];
+const SECTIONS = [{"title": "Checklist", "subtitle": "Prepare ta description.", "items": [{"title": "Titre clair", "meta": "Ex: Pompes explosives", "value": "OK"}, {"title": "Regles strictes", "meta": "Amplitude + cadre", "value": "OK"}, {"title": "Preuve video", "meta": "Camera stable", "value": "OK"}]}];
 
-  const [title, setTitle] = useState(rematchTitle);
-  const [description, setDescription] = useState("");
-  const [sport, setSport] = useState(rematchSport);
-  const [targetValue, setTargetValue] = useState("");
-  const [unit, setUnit] = useState("");
-  const [betEnabled, setBetEnabled] = useState(rematchBet > 0);
-  const [betAmount, setBetAmount] = useState(
-    rematchBet ? rematchBet.toString() : ""
-  );
-  const [minLevel, setMinLevel] = useState("1");
-  const [videoUri, setVideoUri] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const pickVideo = async () => {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      feedbackError();
-      Alert.alert(
-        "Permission refusee",
-        "Active la camera pour enregistrer une preuve du defi."
-      );
-      return;
-    }
-
-    const res = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-      quality: 0.7,
-    });
-
-    if (!res.canceled) {
-      feedbackTap();
-      setVideoUri(res.assets[0].uri);
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!title.trim() || !description.trim() || !sport.trim()) {
-      feedbackError();
-      Alert.alert("Champs requis", "Renseigne titre, description et sport.");
-      return;
-    }
-    if (!targetValue || Number.isNaN(Number(targetValue))) {
-      feedbackError();
-      Alert.alert("Objectif invalide", "Entre une valeur numerique.");
-      return;
-    }
-    if (!unit.trim()) {
-      feedbackError();
-      Alert.alert("Unite manquante", "Specifie l unite de mesure.");
-      return;
-    }
-    if (!videoUri) {
-      feedbackError();
-      Alert.alert("Video requise", "Filme une demonstration pour ton defi.");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-
-      const { data: sessionData } = await supabase.auth.getSession();
-      const user = sessionData.session?.user || null;
-      if (!user) {
-        feedbackError();
-        Alert.alert("Connexion requise", "Connecte toi pour creer un defi.");
-        setSubmitting(false);
-        return;
-      }
-
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
-        .toISOString()
-        .slice(0, 19);
-      const { count: challengeCount } = await supabase
-        .from("challenges")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("created_at", twentyFourHoursAgo);
-      if ((challengeCount || 0) >= 5) {
-        feedbackError();
-        Alert.alert(
-          "Trop de defis",
-          "Tu as deja publie 5 defis ces dernieres 24h. Reviens un peu plus tard."
-        );
-        setSubmitting(false);
-        return;
-      }
-
-      // Gestion de la mise du createur si defi classe
-      let betAmountNum = 0;
-      let currentCoins = 0;
-
-      if (betEnabled) {
-        betAmountNum = Number(betAmount) || 0;
-        if (betAmountNum <= 0) {
-          feedbackError();
-          Alert.alert(
-            "Mise invalide",
-            "Pour un defi classe, entre une mise en coins superieure a 0."
-          );
-          setSubmitting(false);
-          return;
-        }
-
-        const { data: wallet } = await supabase
-          .from("wallets")
-          .select("*")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (wallet) {
-          const w = wallet as WalletRow;
-          currentCoins = w.coins || 0;
-        }
-
-        if (currentCoins < betAmountNum) {
-          feedbackError();
-          Alert.alert(
-            "Pas assez de coins",
-            `Tu as ${currentCoins} coins. Il faut au moins ${betAmountNum} coins pour lancer ce defi classe.`
-          );
-          setSubmitting(false);
-          return;
-        }
-      }
-
-      // 1) Upload video
-      const filePath = `challenges/${user.id}_${Date.now()}.mp4`;
-      const base64Video = await FileSystem.readAsStringAsync(videoUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
-      const fileData = decode(base64Video);
-
-      const { error: uploadError } = await supabase.storage
-        .from("videos")
-        .upload(filePath, fileData, { contentType: "video/mp4" });
-
-      if (uploadError) {
-        console.log("UPLOAD ERROR", uploadError);
-        feedbackError();
-        Alert.alert("Erreur", "Impossible d envoyer la video.");
-        setSubmitting(false);
-        return;
-      }
-
-      const { data: publicUrl } = supabase.storage
-        .from("videos")
-        .getPublicUrl(filePath);
-
-      const payload = {
-        user_id: user.id,
-        title: title.trim(),
-        description: description.trim(),
-        sport: sport.trim(),
-        target_value: Number(targetValue),
-        unit: unit.trim(),
-        video_url: publicUrl.publicUrl,
-        bet_enabled: betEnabled,
-        bet_amount: betEnabled ? betAmountNum : 0,
-        min_level: betEnabled ? Number(minLevel) || 1 : 1,
-      };
-
-      // 2) Inserer le defi
-      const { data: inserted, error: insertError } = await supabase
-        .from("challenges")
-        .insert(payload)
-        .select("*")
-        .single();
-
-      if (insertError) {
-        console.log("INSERT CHALLENGE ERROR", insertError);
-        feedbackError();
-        Alert.alert("Erreur", "Impossible de creer le defi.");
-        setSubmitting(false);
-        return;
-      }
-
-      // 3) Si defi classe, deduire les coins du createur
-      if (betEnabled && betAmountNum > 0) {
-        const newCoins = Math.max(currentCoins - betAmountNum, 0);
-
-        const { error: walletUpdateError } = await supabase
-          .from("wallets")
-          .update({ coins: newCoins })
-          .eq("user_id", user.id);
-
-        if (walletUpdateError) {
-          console.log("CREATE CHALLENGE WALLET UPDATE ERROR", walletUpdateError);
-          Alert.alert(
-            "Attention",
-            "Le defi est cree, mais une erreur est survenue lors de la mise a jour de tes coins."
-          );
-        }
-      }
-
-      // 4) Activite "defi cree"
-      const pseudo = user.user_metadata?.pseudo || user.email || "Un joueur";
-
-      const messageBase = `${pseudo} a cree un nouveau defi`;
-      const messageFinal =
-        betEnabled && betAmountNum > 0
-          ? `${messageBase} (defi classe, mise ${betAmountNum} coins)`
-          : messageBase;
-
-      await supabase.from("activities").insert({
-        user_id: user.id,
-        pseudo,
-        type: "challenge_created",
-        challenge_id: inserted?.id ?? null,
-        message: messageFinal,
-      });
-
-      // 5) Reset du formulaire
-      setTitle("");
-      setDescription("");
-      setSport("");
-      setTargetValue("");
-      setUnit("");
-      setBetEnabled(false);
-      setBetAmount("");
-      setMinLevel("1");
-      setVideoUri(null);
-
-      feedbackSuccess();
-      Alert.alert("Defi cree", "Ton defi est en ligne !", [
-        {
-          text: "OK",
-          onPress: () => {
-            navigation.goBack();
-          },
-        },
-      ]);
-    } catch (error: any) {
-      console.log("CREATE CHALLENGE ERROR", error);
-      feedbackError();
-      Alert.alert("Erreur", error.message || "Impossible de creer le defi.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
+export default function CreateChallengeScreen() {
   return (
     <ScreenContainer>
-      <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "900",
-            marginBottom: 12,
-            color: COLORS.text,
-          }}
-        >
-          Creer un defi
-        </Text>
-
-        <TextInput
-          placeholder="Titre"
-          placeholderTextColor={COLORS.textMuted}
-          value={title}
-          onChangeText={setTitle}
-          style={styles.input}
-        />
-        <TextInput
-          placeholder="Description"
-          placeholderTextColor={COLORS.textMuted}
-          value={description}
-          onChangeText={setDescription}
-          style={[styles.input, { height: 80 }]}
-          multiline
-        />
-        <TextInput
-          placeholder="Sport (pushups, basket, run...)"
-          placeholderTextColor={COLORS.textMuted}
-          value={sport}
-          onChangeText={setSport}
-          style={styles.input}
-        />
-        <TextInput
-          placeholder="Objectif (nombre)"
-          placeholderTextColor={COLORS.textMuted}
-          value={targetValue}
-          onChangeText={setTargetValue}
-          keyboardType="numeric"
-          style={styles.input}
-        />
-        <TextInput
-          placeholder="Unite (ex: reps, km, s...)"
-          placeholderTextColor={COLORS.textMuted}
-          value={unit}
-          onChangeText={setUnit}
-          style={styles.input}
-        />
-
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginTop: 12,
-          }}
-        >
-          <Text style={{ fontSize: 16, fontWeight: "600", color: COLORS.text }}>
-            Activer le pari
-          </Text>
-          <Switch
-            value={betEnabled}
-            onValueChange={(val) => {
-              feedbackTap();
-              setBetEnabled(val);
-            }}
-          />
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.hero}>
+          <Text style={styles.kicker}>{KICKER}</Text>
+          <Text style={styles.title}>{TITLE}</Text>
+          <Text style={styles.subtitle}>{SUBTITLE}</Text>
+          <View style={styles.statsRow}>
+            {STATS.map((item) => (
+              <View key={item.label} style={styles.statCard}>
+                <Text style={styles.statValue}>{item.value}</Text>
+                <Text style={styles.statLabel}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.actions}>
+            <AppButton label={CTA_PRIMARY} size="sm" onPress={() => {}} />
+            <AppButton label={CTA_SECONDARY} size="sm" variant="ghost" onPress={() => {}} />
+          </View>
         </View>
 
-        {betEnabled && (
-          <>
-            <TextInput
-              placeholder="Mise (coins)"
-              placeholderTextColor={COLORS.textMuted}
-              value={betAmount}
-              onChangeText={setBetAmount}
-              keyboardType="numeric"
-              style={styles.input}
-            />
-            <TextInput
-              placeholder="Niveau minimum"
-              placeholderTextColor={COLORS.textMuted}
-              value={minLevel}
-              onChangeText={setMinLevel}
-              keyboardType="numeric"
-              style={styles.input}
-            />
-          </>
-        )}
-
-        <View style={{ marginVertical: 16 }}>
-          <Button
-            title={videoUri ? "Refilmer la video" : "Filmer la video du defi"}
-            onPress={pickVideo}
-          />
-        </View>
-
-        {videoUri && (
-          <Video
-            source={{ uri: videoUri }}
-            style={{ height: 220, borderRadius: 8, backgroundColor: "#000" }}
-            useNativeControls
-            resizeMode={ResizeMode.CONTAIN}
-          />
-        )}
-
-        <View style={{ marginTop: 24 }}>
-          <Button
-            title={submitting ? "Publication..." : "Publier le defi"}
-            onPress={handleCreate}
-            disabled={submitting}
-          />
-        </View>
+        {SECTIONS.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+            <View style={styles.cardGrid}>
+              {section.items.map((item, idx) => (
+                <View key={section.title + "-" + idx} style={styles.card}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardMeta}>{item.meta}</Text>
+                  <Text style={styles.cardValue}>{item.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
       </ScrollView>
     </ScreenContainer>
   );
 }
 
-const styles = {
-  input: {
+const styles = StyleSheet.create({
+  container: { paddingBottom: 80 },
+  hero: {
+    padding: 18,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    backgroundColor: COLORS.card,
+    borderColor: "rgba(212,175,55,0.35)",
+    backgroundColor: "rgba(12,12,16,0.92)",
+    marginBottom: 18,
+  },
+  kicker: {
+    fontSize: 11,
+    letterSpacing: 3,
+    color: COLORS.textMuted,
+    fontWeight: "700",
+  },
+  title: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginTop: 6,
+  },
+  subtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  statsRow: {
+    marginTop: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 140,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: "rgba(3,7,18,0.6)",
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "800",
     color: COLORS.text,
   },
-};
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  actions: {
+    marginTop: 16,
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  section: { marginBottom: 18 },
+  sectionTitle: {
+    ...TYPO.title,
+    color: COLORS.text,
+  },
+  sectionSubtitle: {
+    color: COLORS.textMuted,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  cardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  card: {
+    flex: 1,
+    minWidth: 220,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: COLORS.surface,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  cardValue: {
+    fontSize: 13,
+    color: COLORS.primary,
+    marginTop: 8,
+    fontWeight: "700",
+  },
+});

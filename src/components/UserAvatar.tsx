@@ -30,7 +30,7 @@ export default function UserAvatar({ uri, label, size = 48 }: Props) {
           dimension,
           {
             borderWidth: 1,
-            borderColor: "rgba(250,205,21,0.5)",
+            borderColor: "rgba(212,175,55,0.55)",
           },
         ]}
         resizeMode="cover"
@@ -43,7 +43,7 @@ export default function UserAvatar({ uri, label, size = 48 }: Props) {
       style={[
         dimension,
         {
-          backgroundColor: "#111827",
+          backgroundColor: "#0B0B10",
           justifyContent: "center",
           alignItems: "center",
           borderWidth: 1,

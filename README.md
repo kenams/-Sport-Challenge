@@ -24,7 +24,7 @@ Application React Native / Expo permettant de lancer des défis sportifs en vid�
 
 - Node.js 18+
 - npm ou yarn
-- Compte Supabase (variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` pour certains scripts)
+- Compte Supabase (variables `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` pour l'app, et `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` pour certains scripts)
 
 ## Installation
 
@@ -35,8 +35,12 @@ npm install
 Crée un fichier `.env.local` (ou configure la plateforme) avec :
 
 ```sh
+EXPO_PUBLIC_SUPABASE_URL=...
+EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+EXPO_PUBLIC_ARENA_SIGNAL_URL=... # URL de la function arena-signal
+
+# scripts Node
 SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=... # requis pour les scripts admin
 ```
 
@@ -62,6 +66,7 @@ npm run web           # Expo web
 - `scripts/` :
   - `checkFlows.js` : QA flows critiques Supabase.
   - `runLiveReminders.js` : scheduler de notifications Arena Live.
+- `supabase/` : schéma SQL + functions Edge (arena-signal).
 
 ## Workflows importants
 

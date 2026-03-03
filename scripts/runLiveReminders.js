@@ -1,3 +1,4 @@
+require("./loadEnv");
 const { createClient } = require("@supabase/supabase-js");
 
 async function main() {
@@ -57,3 +58,4 @@ main().catch((err) => {
   console.error("[cron:reminders]", err.message || err);
   process.exit(1);
 });
+

@@ -8,11 +8,13 @@ import {
   Text,
   TouchableOpacity,
   View,
+  StyleSheet,
+  useWindowDimensions,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
 import { Challenge, UserProfile } from "../types";
-import { COLORS, getSportPalette } from "../theme";
+import { COLORS, getSportPalette, TYPO } from "../theme";
 import SportTag from "../components/SportTag";
 import UserAvatar from "../components/UserAvatar";
 import { fetchProfilesMap } from "../services/profile";
@@ -21,6 +23,9 @@ import AppButton from "../components/AppButton";
 const STAKE_FILTERS = [0, 25, 50, 100, 200];
 
 export default function ArenaChallengesScreen({ navigation }: any) {
+  const { width } = useWindowDimensions();
+  const isTiny = width < 420;
+  const isNarrow = width < 720;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rows, setRows] = useState<Challenge[]>([]);
@@ -109,47 +114,32 @@ export default function ArenaChallengesScreen({ navigation }: any) {
           backgroundColor: palette.card,
         }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center" }}>
+        <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap" }}>
           <UserAvatar
             uri={profile?.avatar_url || item.avatar_url || undefined}
             label={creatorLabel}
             size={48}
           />
           <View style={{ marginLeft: 12, flex: 1 }}>
-            <Text
-              style={{
-                color: palette.text,
-                fontSize: 16,
-                fontWeight: "800",
-              }}
-            >
+            <Text style={[TYPO.title, { color: palette.text }]}>
               {item.title}
             </Text>
-            <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
+            <Text style={[TYPO.subtitle, { color: COLORS.textMuted }]}>
               {creatorLabel}
             </Text>
           </View>
           <SportTag sport={item.sport} />
         </View>
-        <Text
-          style={{
-            color: palette.text,
-            marginTop: 10,
-            fontSize: 13,
-          }}
-        >
+        <Text style={[TYPO.body, { color: palette.text, marginTop: 10 }]}>
           Objectif : {item.target_value} {item.unit}
         </Text>
-        <Text style={{ color: COLORS.textMuted, fontSize: 12, marginTop: 4 }}>
+        <Text
+          style={[TYPO.subtitle, { color: COLORS.textMuted, marginTop: 4 }]}
+        >
           Niveau min : {item.min_level || item.level_required || 1}
         </Text>
         <Text
-          style={{
-            marginTop: 6,
-            color: COLORS.primary,
-            fontWeight: "800",
-            fontSize: 14,
-          }}
+          style={[TYPO.title, { marginTop: 6, color: COLORS.primary }]}
         >
           Mise : {stake} coins
         </Text>
@@ -176,7 +166,7 @@ export default function ArenaChallengesScreen({ navigation }: any) {
               color: "#050505",
             }}
           >
-            Ouvrir en Arena
+            Ouvrir en Arena Live
           </Text>
         </TouchableOpacity>
       </View>
@@ -195,25 +185,13 @@ export default function ArenaChallengesScreen({ navigation }: any) {
 
   return (
     <ScreenContainer>
-      <Text
-        style={{
-          fontSize: 24,
-          fontWeight: "900",
-          color: COLORS.text,
-          marginBottom: 12,
-        }}
-      >
+      <Text style={[styles.pageTitle, isTiny && styles.pageTitleTiny]}>
         Défis Arena
       </Text>
-      <Text
-        style={{
-          color: COLORS.textMuted,
-          marginBottom: 16,
-        }}
-      >
+      <Text style={styles.pageSubtitle}>
         Sélectionne un défi classé pour ouvrir ou rejoindre une Arena Live.
       </Text>
-      <View style={{ flexDirection: "row", marginBottom: 16 }}>
+      <View style={[styles.filterRow, isNarrow && styles.filterRowStack]}>
         {STAKE_FILTERS.map((value) => (
           <TouchableOpacity
             key={value}
@@ -241,7 +219,7 @@ export default function ArenaChallengesScreen({ navigation }: any) {
             </Text>
           </TouchableOpacity>
         ))}
-        </View>
+      </View>
       <AppButton
         label="Match express"
         onPress={handleExpressMatch}
@@ -264,3 +242,29 @@ export default function ArenaChallengesScreen({ navigation }: any) {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  pageTitle: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  pageTitleTiny: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  pageSubtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 16,
+  },
+  filterRow: {
+    flexDirection: "row",
+    marginBottom: 16,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  filterRowStack: {
+    gap: 6,
+  },
+});

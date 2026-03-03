@@ -20,7 +20,7 @@ const DOMAIN_CONFIGS: DomainConfig[] = [
   {
     key: "aqua",
     label: "Aquatique",
-    tagline: "Precision bleue",
+    tagline: "Précision bleue",
     paletteKey: "piscine",
     matchers: ["swim", "piscine", "aqua", "nage"],
   },
@@ -41,7 +41,7 @@ const DOMAIN_CONFIGS: DomainConfig[] = [
   {
     key: "endurance",
     label: "Endurance",
-    tagline: "Stamina supreme",
+    tagline: "Stamina suprême",
     paletteKey: "velo",
     matchers: ["velo", "bike", "cycling"],
   },

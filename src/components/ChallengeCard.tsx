@@ -1,4 +1,4 @@
-// src/components/ChallengeCard.tsx
+﻿// src/components/ChallengeCard.tsx
 import React from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import { Challenge, UserProfile } from "../types";
@@ -10,16 +10,48 @@ interface Props {
   challenge: Challenge;
   onPress?: () => void;
   profile?: UserProfile;
+  variant?: "challenge" | "performance";
 }
 
-export default function ChallengeCard({ challenge, onPress, profile }: Props) {
+export default function ChallengeCard({
+  challenge,
+  onPress,
+  profile,
+  variant = "challenge",
+}: Props) {
   const palette = getSportPalette(challenge.sport);
   const domain = getSportDomain(challenge.sport);
   const domainPalette = getSportPalette(domain.paletteKey);
+  const colorKey = String(challenge.id ?? challenge.title ?? challenge.user_id);
+  let hash = 0;
+  for (let i = 0; i < colorKey.length; i += 1) {
+    hash = (hash * 31 + colorKey.charCodeAt(i)) >>> 0;
+  }
+  const accentPalette = [
+    "#F59E0B",
+    "#22D3EE",
+    "#F97316",
+    "#A3E635",
+    "#FB7185",
+    "#60A5FA",
+    "#C084FC",
+    "#FACC15",
+    "#34D399",
+    "#F472B6",
+  ];
+  const accent = accentPalette[hash % accentPalette.length];
   const displayName =
     profile?.pseudo ||
     challenge.pseudo ||
     `Joueur ${challenge.user_id.slice(0, 4)}...${challenge.user_id.slice(-4)}`;
+  const aiLabel =
+    challenge.ai_status === "rejected"
+      ? "Rejeté"
+      : challenge.ai_needs_review
+      ? "À vérifier"
+      : challenge.ai_status === "validated" || challenge.ai_status === "ok"
+      ? "Validé IA"
+      : null;
 
   return (
     <TouchableOpacity
@@ -28,15 +60,15 @@ export default function ChallengeCard({ challenge, onPress, profile }: Props) {
       style={{
         padding: 16,
         borderWidth: 1,
-        borderRadius: 12,
+        borderRadius: 18,
         marginBottom: 12,
-        borderColor: palette.border || COLORS.border,
-        backgroundColor: palette.card || COLORS.card,
-        shadowColor: "#000",
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-        elevation: 4,
+        borderColor: accent,
+        backgroundColor: COLORS.surface,
+        shadowColor: accent,
+        shadowOpacity: 0.28,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: 10 },
+        elevation: 5,
       }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
@@ -67,6 +99,23 @@ export default function ChallengeCard({ challenge, onPress, profile }: Props) {
             {displayName}
           </Text>
         </View>
+        {aiLabel && (
+          <View
+            style={{
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor:
+                aiLabel === "Validé IA"
+                  ? "rgba(110,231,183,0.6)"
+                  : "rgba(252,165,165,0.6)",
+              backgroundColor: "rgba(10,10,14,0.8)",
+            }}
+          >
+            <Text style={{ fontSize: 11, fontWeight: "700", color: COLORS.text }}>{aiLabel}</Text>
+          </View>
+        )}
       </View>
 
       <Text
@@ -86,7 +135,7 @@ export default function ChallengeCard({ challenge, onPress, profile }: Props) {
           padding: 10,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: domainPalette.border,
+          borderColor: accent,
           backgroundColor: domainPalette.background,
         }}
       >
@@ -113,12 +162,13 @@ export default function ChallengeCard({ challenge, onPress, profile }: Props) {
       <Text
         style={{
           marginTop: 10,
-          color: palette.accent || COLORS.primary,
+          color: accent,
           fontWeight: "600",
         }}
       >
-        Sport : {challenge.sport}  |  Objectif : {challenge.target_value}{" "}
-        {challenge.unit}
+        Sport : {challenge.sport} | {variant === "performance" ? "Performance" : "Objectif"} :
+        {" "}
+        {challenge.target_value} {challenge.unit}
       </Text>
     </TouchableOpacity>
   );

@@ -1,8 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, ActivityIndicator, FlatList, RefreshControl } from "react-native";
+import {
+  View,
+  Text,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import { COLORS } from "../theme";
+import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
+import AppButton from "../components/AppButton";
 
 type AuditEntry = {
   id: number;
@@ -15,6 +24,8 @@ type AuditEntry = {
 };
 
 export default function AdminAuditScreen() {
+  const { width } = useWindowDimensions();
+  const isTiny = width < 420;
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<AuditEntry[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -82,6 +93,8 @@ export default function AdminAuditScreen() {
               fontSize: 12,
               marginTop: 6,
             }}
+            numberOfLines={3}
+            ellipsizeMode="tail"
           >
             {JSON.stringify(item.payload)}
           </Text>
@@ -103,19 +116,23 @@ export default function AdminAuditScreen() {
   return (
     <ScreenContainer>
       <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "900",
-            color: COLORS.text,
-            marginBottom: 12,
-          }}
-        >
-          Admin Audit
-        </Text>
-        <Text style={{ color: COLORS.textMuted, marginBottom: 16 }}>
-          Suivi des actions critiques (ban, reset, punition, etc.).
-        </Text>
+        <View style={[styles.headerRow, isTiny && styles.headerRowStack]}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.pageTitle, isTiny && styles.pageTitleTiny]}>
+              Admin Audit
+            </Text>
+            <Text style={styles.pageSubtitle}>
+              Suivi des actions critiques (ban, reset, punition, etc.).
+            </Text>
+          </View>
+          <AppButton
+            label="Actualiser"
+            size="sm"
+            variant="ghost"
+            onPress={loadAudit}
+          />
+        </View>
+        <Text style={styles.pageMeta}>Dernières 50 entrées</Text>
         <FlatList
           data={rows}
           keyExtractor={(item) => item.id.toString()}
@@ -134,3 +151,36 @@ export default function AdminAuditScreen() {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  pageTitle: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  pageTitleTiny: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  pageSubtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 16,
+  },
+  pageMeta: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 12,
+    fontSize: 12,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  headerRowStack: {
+    flexDirection: "column",
+    alignItems: "stretch",
+  },
+});

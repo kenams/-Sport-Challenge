@@ -1,3 +1,4 @@
+require("./loadEnv");
 const { createClient } = require("@supabase/supabase-js");
 const { randomUUID } = require("crypto");
 
@@ -70,3 +71,4 @@ main().catch((err) => {
   console.error("[check:flows]", err.message || err);
   process.exit(1);
 });
+

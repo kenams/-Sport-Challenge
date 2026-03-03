@@ -1,457 +1,264 @@
-// src/screens/LeaderboardScreen.tsx
-import React, { useEffect, useState, useCallback } from "react";
+﻿// src/screens/LeaderboardScreen.tsx
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  ActivityIndicator,
   FlatList,
-  TouchableOpacity,
-  ScrollView,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
 } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
+import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
-import { COLORS } from "../theme";
-import { fetchProfilesMap } from "../services/profile";
-import { getDepartmentLabel } from "../utils/departments";
+import VideoPlayer from "../components/VideoPlayer";
 
-type PlayerStatsRow = {
-  user_id: string;
-  points: number;
-  level: number;
-  title: string | null;
-};
-
-type LeaderItem = PlayerStatsRow & {
-  isMe: boolean;
-};
-
-type DepartmentStat = {
-  code: string;
-  label: string;
-  count: number;
-};
+const SAMPLE_LEADERS = [
+  { id: "p1", pseudo: "Kah Alpha", points: 1240, level: 8 },
+  { id: "p2", pseudo: "Maya Flash", points: 980, level: 7 },
+  { id: "p3", pseudo: "Noah Sprint", points: 860, level: 6 },
+  { id: "p4", pseudo: "Lina Force", points: 720, level: 5 },
+  { id: "p5", pseudo: "Zara Wave", points: 640, level: 5 },
+];
 
 export default function LeaderboardScreen() {
+  const { width } = useWindowDimensions();
+  const isWeb = Platform.OS === "web";
+  const columns = isWeb && width >= 1100 ? 2 : 1;
+  const [period, setPeriod] = useState("all");
+  const [topResponses, setTopResponses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<LeaderItem[]>([]);
-  const [myId, setMyId] = useState<string | null>(null);
-  const [deptStats, setDeptStats] = useState<DepartmentStat[]>([]);
-  const [myDepartment, setMyDepartment] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"players" | "territories" | "challenges">("players");
-  const [topChallenges, setTopChallenges] = useState<any[]>([]);
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const { data: ses } = await supabase.auth.getSession();
-      const user = ses.session?.user || null;
-      const currentId = user?.id || null;
-      setMyId(currentId);
-      const currentDept =
-        typeof user?.user_metadata?.department === "string"
-          ? (user.user_metadata?.department as string)
-          : null;
-      setMyDepartment(currentDept);
-
-      const { data, error } = await supabase
-        .from("players_stats")
-        .select("*")
-        .order("points", { ascending: false })
-        .limit(50);
-
-      if (error) {
-        console.log("LEADERBOARD ERROR", error);
-        setItems([]);
-      } else if (data) {
-        const list = (data as PlayerStatsRow[]).map((row) => ({
-          ...row,
-          isMe: row.user_id === currentId,
-        }));
-        setItems(list);
-      }
-
-      const { data: challengeRows } = await supabase
-        .from("challenges")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (challengeRows && challengeRows.length > 0) {
-        const userIds = Array.from(new Set(challengeRows.map((r) => r.user_id)));
-        const profileMap = await fetchProfilesMap(userIds);
-        const counts: Record<string, number> = {};
-
-        challengeRows.forEach((row) => {
-          const dep = profileMap.get(row.user_id)?.department;
-          if (!dep) return;
-          counts[dep] = (counts[dep] || 0) + 1;
-        });
-
-        const stats = Object.entries(counts)
-          .sort((a, b) => b[1] - a[1])
-          .map(([code, count]) => ({
-            code,
-            label: getDepartmentLabel(code) || `Territoire ${code}`,
-            count,
-          }));
-        setDeptStats(stats);
-
-        const topChallengeMapped = (challengeRows as any[])
-          .slice(0, 10)
-          .map((challenge) => {
-            const owner = profileMap.get(challenge.user_id);
-            return {
-              id: challenge.id,
-              title: challenge.title,
-              sport: challenge.sport,
-              ownerPseudo:
-                owner?.pseudo ||
-                challenge.pseudo ||
-                `Joueur ${challenge.user_id.slice(0, 6)}`,
-              territory: getDepartmentLabel(owner?.department || "") || owner?.department || "N/A",
-              created_at: challenge.created_at,
-              bet: challenge.bet_amount || 0,
-            };
-          });
-        setTopChallenges(topChallengeMapped);
-      } else {
-        setDeptStats([]);
-        setTopChallenges([]);
-      }
-    } catch (e) {
-      console.log("LEADERBOARD LOAD ERROR", e);
-      setItems([]);
-      setDeptStats([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const periods = useMemo(
+    () => [
+      { key: "all", label: "Global" },
+      { key: "7", label: "7 jours" },
+      { key: "30", label: "30 jours" },
+    ],
+    []
+  );
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
-
-  const renderItem = ({
-    item,
-    index,
-  }: {
-    item: LeaderItem;
-    index: number;
-  }) => {
-    const rank = index + 1;
-    const isMe = item.isMe;
-
-    let rankIcon = "";
-    if (rank === 1) rankIcon = "👑";
-    else if (rank === 2) rankIcon = "🥈";
-    else if (rank === 3) rankIcon = "🥉";
-    else rankIcon = "#" + rank;
-
-    return (
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          paddingVertical: 8,
-          paddingHorizontal: 10,
-          borderRadius: 12,
-          marginBottom: 6,
-          backgroundColor: isMe ? "#111827" : "#020617",
-          borderWidth: 1,
-          borderColor: isMe ? COLORS.primary : COLORS.border,
-        }}
-      >
-        <Text
-          style={{
-            width: 40,
-            fontSize: 14,
-            fontWeight: "800",
-            color: COLORS.primary,
-          }}
-        >
-          {rankIcon}
-        </Text>
-
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "800",
-              color: COLORS.text,
-            }}
-          >
-            Joueur {item.user_id.slice(0, 4)}...{item.user_id.slice(-4)}
-          </Text>
-          <Text
-            style={{
-              fontSize: 12,
-              color: COLORS.textMuted,
-            }}
-          >
-            {item.title || "Rookie"} • Niveau {item.level}
-          </Text>
-        </View>
-
-        <View style={{ alignItems: "flex-end" }}>
-          <Text
-            style={{
-              fontSize: 14,
-              fontWeight: "900",
-              color: COLORS.primary,
-            }}
-          >
-            {item.points}
-          </Text>
-          <Text
-            style={{
-              fontSize: 11,
-              color: COLORS.textMuted,
-            }}
-          >
-            points
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  if (loading) {
-    return (
-      <ScreenContainer>
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      </ScreenContainer>
-    );
-  }
-
-  const renderTopChallenges = () => {
-    if (topChallenges.length === 0) {
-      return (
-        <Text style={{ color: COLORS.textMuted, fontSize: 13, marginTop: 10 }}>
-          Pas de défi brûlant pour l'instant. Allume la mèche.
-        </Text>
-      );
-    }
-
-    return topChallenges.map((challenge) => (
-      <View
-        key={challenge.id}
-        style={{
-          borderWidth: 1,
-          borderColor: COLORS.border,
-          backgroundColor: "#020617",
-          borderRadius: 14,
-          padding: 12,
-          marginBottom: 8,
-        }}
-      >
-        <Text
-          style={{
-            fontSize: 14,
-            fontWeight: "800",
-            color: COLORS.text,
-            marginBottom: 4,
-          }}
-        >
-          {challenge.title}
-        </Text>
-        <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
-          Sport : {challenge.sport}
-        </Text>
-        <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
-          Créateur : {challenge.ownerPseudo}
-        </Text>
-        <Text style={{ fontSize: 12, color: COLORS.textMuted }}>
-          Territoire : {challenge.territory}
-        </Text>
-        {challenge.bet > 0 && (
-          <Text style={{ fontSize: 12, color: COLORS.primary }}>
-            Mise : {challenge.bet} coins
-          </Text>
-        )}
-      </View>
-    ));
-  };
-
-  const renderNonPlayerContent = () => {
-    if (activeTab === "territories") {
-      return (
-        <View style={{ marginTop: 12 }}>
-          {deptStats.length === 0 ? (
-            <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
-              Aucun territoire ne s'affiche. Balance un défi et fais du bruit.
-            </Text>
-          ) : (
-            deptStats.slice(0, 8).map((dept, idx) => {
-              const isMine = dept.code === myDepartment;
-              return (
-                <View
-                  key={dept.code}
-                  style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    paddingVertical: 8,
-                    paddingHorizontal: 10,
-                    borderRadius: 12,
-                    marginBottom: 6,
-                    borderWidth: 1,
-                    borderColor: isMine ? COLORS.primary : COLORS.border,
-                    backgroundColor: isMine ? "#111827" : "#020617",
-                  }}
-                >
-                  <View>
-                    <Text
-                      style={{
-                        fontSize: 14,
-                        fontWeight: "800",
-                        color: COLORS.text,
-                      }}
-                    >
-                      #{idx + 1} {dept.label}
-                    </Text>
-                    <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
-                      Code {dept.code}
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      fontWeight: "900",
-                      color: COLORS.primary,
-                    }}
-                  >
-                    {dept.count}
-                  </Text>
-                </View>
-              );
-            })
-          )}
-        </View>
-      );
-    }
-
-    return <View style={{ marginTop: 12 }}>{renderTopChallenges()}</View>;
-  };
-
-  const renderTabs = () => (
-    <View
-      style={{
-        flexDirection: "row",
-        gap: 8,
-        marginBottom: 16,
-      }}
-    >
-      {[
-        { key: "players", label: "Boss du moment" },
-        { key: "territories", label: "Territoires en feu" },
-        { key: "challenges", label: "Défis chauds" },
-      ].map((tab) => {
-        const isActive = activeTab === tab.key;
-        return (
-          <TouchableOpacity
-            key={tab.key}
-            onPress={() => setActiveTab(tab.key as any)}
-            style={{
-              flex: 1,
-              paddingVertical: 10,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: isActive ? COLORS.primary : COLORS.border,
-              backgroundColor: isActive ? COLORS.primary : "transparent",
-            }}
-          >
-            <Text
-              style={{
-                textAlign: "center",
-                fontWeight: "700",
-                color: isActive ? "#050505" : COLORS.text,
-              }}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      const { data } = await supabase
+        .from("challenge_responses")
+        .select("id, video_url, created_at, votes, pseudo, challenges(title, sport)")
+        .order("votes", { ascending: false })
+        .limit(10);
+      if (active) {
+        setTopResponses(data || []);
+        setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      active = false;
+    };
+  }, [period]);
 
   return (
     <ScreenContainer>
-      <View style={{ flex: 1 }}>
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "900",
-            color: COLORS.text,
-            marginBottom: 8,
-          }}
-        >
-          Tableau de chasse
+      <View style={styles.header}>
+        <Text style={styles.kicker}>Classement</Text>
+        <Text style={styles.title}>Tableau de chasse</Text>
+        <Text style={styles.subtitle}>Suivez les leaders par période et par discipline.</Text>
+      </View>
+
+      <View style={styles.periodRow}>
+        {periods.map((item) => (
+          <Text
+            key={item.key}
+            onPress={() => setPeriod(item.key)}
+            style={[styles.periodChip, period === item.key && styles.periodChipActive]}
+          >
+            {item.label}
+          </Text>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Top performances</Text>
+        <Text style={styles.sectionSubtitle}>
+          Les soumissions les plus votees du moment.
         </Text>
-
-        <Text
-          style={{
-            fontSize: 13,
-            color: COLORS.textMuted,
-            marginBottom: 16,
-          }}
-        >
-          Qui tient la rue en ce moment ? Regarde qui frappe fort, quel
-          territoire domine et quels défis mettent la pression.
-        </Text>
-
-        {renderTabs()}
-
-        {activeTab === "players" ? (
-          items.length === 0 ? (
-            <Text style={{ fontSize: 14, color: COLORS.textMuted }}>
-              Personne n'a encore de points. Lance des défis, gagne des battles
-              et grimpe au sommet.
-            </Text>
-          ) : (
-            <FlatList
-              data={items}
-              keyExtractor={(item) => item.user_id}
-              renderItem={renderItem}
-              contentContainerStyle={{ paddingBottom: 40 }}
-              ListFooterComponent={
-                myId ? (
-                  <View style={{ marginTop: 8 }}>
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        color: COLORS.textMuted,
-                      }}
-                    >
-                      Ton profil est surligné dans la liste.
-                    </Text>
-                  </View>
-                ) : null
-              }
-            />
-          )
+        {loading ? (
+          <Text style={styles.empty}>Chargement...</Text>
+        ) : topResponses.length === 0 ? (
+          <Text style={styles.empty}>Aucune performance pour le moment.</Text>
         ) : (
-          <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-            {renderNonPlayerContent()}
-            {myId && (
-              <View style={{ marginTop: 8 }}>
-                <Text
-                  style={{
-                    fontSize: 11,
-                    color: COLORS.textMuted,
-                  }}
-                >
-                  Ton profil est surligné dans la liste.
+          <View style={styles.responseGrid}>
+            {topResponses.map((item, index) => (
+              <View key={item.id} style={styles.responseCard}>
+                <Text style={styles.rank}>#{index + 1}</Text>
+                <Text style={styles.cardName}>
+                  {item?.challenges?.title || "Defi"}
                 </Text>
+                <Text style={styles.cardMeta}>
+                  {item?.challenges?.sport || "Sport"} - {item.pseudo || "Joueur"}
+                </Text>
+                <View style={styles.videoCard}>
+                  <VideoPlayer
+                    uri={item.video_url}
+                    style={styles.videoPlayer}
+                    contentFit="cover"
+                    autoPlay={false}
+                    shouldPlay={false}
+                    allowUserToggle
+                    showControlButton
+                  />
+                </View>
+                <Text style={styles.cardPoints}>{item.votes ?? 0} votes</Text>
               </View>
-            )}
-          </ScrollView>
+            ))}
+          </View>
         )}
       </View>
+
+      <FlatList
+        data={SAMPLE_LEADERS}
+        key={columns}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? styles.gridRow : undefined}
+        contentContainerStyle={styles.list}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item, index }) => (
+          <View style={columns > 1 ? styles.gridItem : null}>
+            <View style={styles.card}>
+              <Text style={styles.rank}>#{index + 1}</Text>
+              <Text style={styles.cardName}>{item.pseudo}</Text>
+              <Text style={styles.cardMeta}>Niveau {item.level}</Text>
+              <Text style={styles.cardPoints}>{item.points} pts</Text>
+            </View>
+          </View>
+        )}
+      />
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    padding: 18,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.35)",
+    backgroundColor: "rgba(12,12,16,0.92)",
+    marginBottom: 16,
+  },
+  kicker: {
+    fontSize: 11,
+    letterSpacing: 3,
+    color: COLORS.textMuted,
+    fontWeight: "700",
+  },
+  title: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginTop: 6,
+  },
+  subtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  periodRow: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+    marginBottom: 16,
+  },
+  section: {
+    marginBottom: 18,
+  },
+  sectionTitle: {
+    ...TYPO.title,
+    color: COLORS.text,
+  },
+  sectionSubtitle: {
+    color: COLORS.textMuted,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  empty: {
+    color: COLORS.textMuted,
+  },
+  responseGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  responseCard: {
+    flex: 1,
+    minWidth: 240,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: COLORS.surface,
+  },
+  videoCard: {
+    marginTop: 10,
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+  },
+  videoPlayer: {
+    width: "100%",
+    minHeight: 160,
+  },
+  periodChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    color: COLORS.textMuted,
+    fontSize: 11,
+  },
+  periodChipActive: {
+    color: COLORS.text,
+    borderColor: "rgba(212,175,55,0.6)",
+    backgroundColor: "rgba(212,175,55,0.12)",
+  },
+  list: {
+    paddingBottom: 80,
+  },
+  gridRow: {
+    gap: 12,
+  },
+  gridItem: {
+    flex: 1,
+  },
+  card: {
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: COLORS.surface,
+    marginBottom: 12,
+  },
+  rank: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.primary,
+  },
+  cardName: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: COLORS.text,
+    marginTop: 6,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 2,
+  },
+  cardPoints: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.primary,
+    marginTop: 8,
+  },
+});

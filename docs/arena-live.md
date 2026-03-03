@@ -62,6 +62,10 @@ create index on public.arena_signals (room_id, created_at);
 Security: tous les endpoints valident le JWT Supabase (`Authorization: Bearer`).  
 Cleanup: CRON pour supprimer les rooms `waiting` depuis >15 min.
 
+### Implémentation actuelle
+- Edge Function Supabase `arena-signal` (voir `supabase/functions/arena-signal`).
+- L’app consomme `EXPO_PUBLIC_ARENA_SIGNAL_URL` pour créer/join/signal.
+
 ## Streams Vidéo
 
 - **Option SFU** : LiveKit Cloud / Agora (recommandé pour la stabilité).

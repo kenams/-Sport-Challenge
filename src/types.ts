@@ -17,6 +17,12 @@ export interface Challenge {
   min_level?: number;
   level_required?: number;
   ranked?: boolean;
+  ai_status?: "ok" | "flagged" | "skipped" | "error" | "validated" | "rejected" | null;
+  ai_score?: number | null;
+  ai_duration?: number | null;
+  ai_reason?: string | null;
+  ai_needs_review?: boolean | null;
+  proof_hint?: string | null;
 }
 
 export interface ChallengeResponse {
@@ -29,6 +35,11 @@ export interface ChallengeResponse {
   created_at: string;
   votes?: number;
   is_winner?: boolean;
+  ai_status?: "ok" | "flagged" | "skipped" | "error" | "validated" | "rejected" | null;
+  ai_score?: number | null;
+  ai_duration?: number | null;
+  ai_reason?: string | null;
+  ai_needs_review?: boolean | null;
 }
 
 export interface Wallet {
@@ -41,6 +52,7 @@ export interface PlayerStats {
   level: number;
   points: number;
   title?: string;
+  fair_play_score?: number | null;
 }
 
 export interface Battle {

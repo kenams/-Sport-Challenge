@@ -1,184 +1,156 @@
 // src/screens/ArenaReportsScreen.tsx
-import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, ActivityIndicator, Alert } from "react-native";
+import React from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import { supabase } from "../supabase";
-import { COLORS } from "../theme";
+import { COLORS, TYPO } from "../theme";
 import AppButton from "../components/AppButton";
 
-type Report = {
-  id: number;
-  offender_id: string;
-  reporter_id: string;
-  reason?: string;
-  created_at: string;
-  status?: string;
-};
+const KICKER = "REPORTS";
+const TITLE = "Signalements";
+const SUBTITLE = "Analyse des comportements et contenus signales.";
+const CTA_PRIMARY = "Action";
+const CTA_SECONDARY = "Voir plus";
+
+const STATS = [{"label": "Ouverts", "value": "6"}, {"label": "Traites", "value": "18"}, {"label": "Priorite", "value": "Haute"}];
+const SECTIONS = [{"title": "A traiter", "subtitle": "Signalements recents.", "items": [{"title": "Video floue", "meta": "Defi pompes", "value": "A revoir"}, {"title": "Suspicion de montage", "meta": "Defi sprint", "value": "Urgent"}]}];
 
 export default function ArenaReportsScreen() {
-  const [loading, setLoading] = useState(true);
-  const [reports, setReports] = useState<Report[]>([]);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
-
-  const fetchReports = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("arena_reports")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (!error && data) {
-      setReports(data as Report[]);
-    } else {
-      setReports([]);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchReports();
-  }, []);
-
-  const handleReportAction = async (
-    report: Report,
-    action: "validated" | "rejected"
-  ) => {
-    if (actionLoading !== null) return;
-    try {
-      setActionLoading(report.id);
-      const { error } = await supabase
-        .from("arena_reports")
-        .update({ status: action })
-        .eq("id", report.id);
-      if (error) throw error;
-
-      if (action === "validated") {
-        await supabase.from("punishments").insert({
-          user_id: report.offender_id,
-          ads_remaining: 3,
-          active: true,
-        });
-      }
-
-      Alert.alert(
-        "Rapport traité",
-        action === "validated"
-          ? "Sanction appliquée (3 pubs)."
-          : "Signalement rejeté."
-      );
-      fetchReports();
-    } catch (err: any) {
-      console.log("REPORT ACTION ERROR", err);
-      Alert.alert("Impossible de traiter ce rapport.");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  if (loading) {
-    return (
-      <ScreenContainer>
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-        </View>
-      </ScreenContainer>
-    );
-  }
-
   return (
     <ScreenContainer>
-      <ScrollView
-        contentContainerStyle={{ paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "900",
-            color: COLORS.text,
-            marginBottom: 8,
-          }}
-        >
-          Moderation Arena
-        </Text>
-        <Text style={{ color: COLORS.textMuted, marginBottom: 16 }}>
-          Rapports récents (limités à 50). Pour chaque cas, valide ou rejette la
-          sanction dans Supabase.
-        </Text>
-        <AppButton
-          label="Actualiser"
-          onPress={fetchReports}
-          variant="ghost"
-          style={{ marginBottom: 16 }}
-        />
-        {reports.length === 0 ? (
-          <Text style={{ color: COLORS.textMuted }}>
-            Aucun report enregistré.
-          </Text>
-        ) : (
-          reports.map((report) => (
-            <View
-              key={report.id}
-              style={{
-                borderWidth: 1,
-                borderColor: COLORS.border,
-                borderRadius: 16,
-                padding: 14,
-                marginBottom: 14,
-                backgroundColor: COLORS.surface,
-              }}
-            >
-              <Text
-                style={{
-                  fontWeight: "800",
-                  color: COLORS.text,
-                  marginBottom: 4,
-                }}
-              >
-                Report #{report.id} • {report.status || "pending"}
-              </Text>
-              <Text style={{ color: COLORS.textMuted, fontSize: 12 }}>
-                {new Date(report.created_at).toLocaleString("fr-FR")}
-              </Text>
-              <Text style={{ color: COLORS.text, marginTop: 8, fontSize: 12 }}>
-                Reporter : {report.reporter_id}
-              </Text>
-              <Text style={{ color: COLORS.text, fontSize: 12 }}>
-                Offenseur : {report.offender_id}
-              </Text>
-              {report.reason && (
-                <Text style={{ color: COLORS.textMuted, marginTop: 6 }}>
-                  {report.reason}
-                </Text>
-              )}
-              {report.status === "pending" && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    gap: 8,
-                    marginTop: 12,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <AppButton
-                    label="Valider"
-                    size="sm"
-                    onPress={() => handleReportAction(report, "validated")}
-                    loading={actionLoading === report.id}
-                  />
-                  <AppButton
-                    label="Rejeter"
-                    size="sm"
-                    variant="ghost"
-                    onPress={() => handleReportAction(report, "rejected")}
-                    loading={actionLoading === report.id}
-                  />
+      <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.hero}>
+          <Text style={styles.kicker}>{KICKER}</Text>
+          <Text style={styles.title}>{TITLE}</Text>
+          <Text style={styles.subtitle}>{SUBTITLE}</Text>
+          <View style={styles.statsRow}>
+            {STATS.map((item) => (
+              <View key={item.label} style={styles.statCard}>
+                <Text style={styles.statValue}>{item.value}</Text>
+                <Text style={styles.statLabel}>{item.label}</Text>
+              </View>
+            ))}
+          </View>
+          <View style={styles.actions}>
+            <AppButton label={CTA_PRIMARY} size="sm" onPress={() => {}} />
+            <AppButton label={CTA_SECONDARY} size="sm" variant="ghost" onPress={() => {}} />
+          </View>
+        </View>
+
+        {SECTIONS.map((section) => (
+          <View key={section.title} style={styles.section}>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+            <View style={styles.cardGrid}>
+              {section.items.map((item, idx) => (
+                <View key={section.title + "-" + idx} style={styles.card}>
+                  <Text style={styles.cardTitle}>{item.title}</Text>
+                  <Text style={styles.cardMeta}>{item.meta}</Text>
+                  <Text style={styles.cardValue}>{item.value}</Text>
                 </View>
-              )}
+              ))}
             </View>
-          ))
-        )}
+          </View>
+        ))}
       </ScrollView>
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { paddingBottom: 80 },
+  hero: {
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(212,175,55,0.35)",
+    backgroundColor: "rgba(12,12,16,0.92)",
+    marginBottom: 18,
+  },
+  kicker: {
+    fontSize: 11,
+    letterSpacing: 3,
+    color: COLORS.textMuted,
+    fontWeight: "700",
+  },
+  title: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginTop: 6,
+  },
+  subtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  statsRow: {
+    marginTop: 16,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
+    minWidth: 140,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: "rgba(3,7,18,0.6)",
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: COLORS.text,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  actions: {
+    marginTop: 16,
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  section: { marginBottom: 18 },
+  sectionTitle: {
+    ...TYPO.title,
+    color: COLORS.text,
+  },
+  sectionSubtitle: {
+    color: COLORS.textMuted,
+    marginTop: 4,
+    marginBottom: 10,
+  },
+  cardGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  card: {
+    flex: 1,
+    minWidth: 220,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.2)",
+    backgroundColor: COLORS.surface,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: COLORS.text,
+  },
+  cardMeta: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: 4,
+  },
+  cardValue: {
+    fontSize: 13,
+    color: COLORS.primary,
+    marginTop: 8,
+    fontWeight: "700",
+  },
+});

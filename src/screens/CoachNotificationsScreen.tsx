@@ -1,9 +1,18 @@
 // src/screens/CoachNotificationsScreen.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, RefreshControl } from "react-native";
+import {
+  View,
+  Text,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  useWindowDimensions,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import ScreenContainer from "../components/ScreenContainer";
 import { supabase } from "../supabase";
-import { COLORS } from "../theme";
+import { COLORS, TYPO } from "../theme";
+import AppButton from "../components/AppButton";
 
 type NotificationEntry = {
   id: number;
@@ -14,19 +23,25 @@ type NotificationEntry = {
 };
 
 export default function CoachNotificationsScreen() {
+  const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const isTiny = width < 420;
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [entries, setEntries] = useState<NotificationEntry[]>([]);
+  const [isAuthed, setIsAuthed] = useState(false);
 
   const loadNotifications = async () => {
     setLoading(true);
     const { data: sessionData } = await supabase.auth.getSession();
     const userId = sessionData.session?.user.id;
     if (!userId) {
+      setIsAuthed(false);
       setEntries([]);
       setLoading(false);
       return;
     }
+    setIsAuthed(true);
     const { data, error } = await supabase
       .from("coach_notifications")
       .select("*")
@@ -50,17 +65,47 @@ export default function CoachNotificationsScreen() {
     loadNotifications();
   };
 
+  if (loading) {
+    return (
+      <ScreenContainer>
+        <View style={styles.center}>
+          <Text style={styles.subtle}>Chargement...</Text>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
+  if (!isAuthed) {
+    return (
+      <ScreenContainer>
+        <View style={styles.guestCard}>
+          <Text style={styles.guestTitle}>Notifications coach</Text>
+          <Text style={styles.guestText}>
+            Connecte-toi pour recevoir les objectifs et alertes du coach.
+          </Text>
+          <View style={styles.guestActions}>
+            <AppButton
+              label="Connexion"
+              onPress={() => navigation.navigate("Login")}
+            />
+            <AppButton
+              label="Inscription"
+              variant="ghost"
+              onPress={() => navigation.navigate("Register")}
+            />
+          </View>
+        </View>
+      </ScreenContainer>
+    );
+  }
+
   return (
     <ScreenContainer>
-      <Text
-        style={{
-          fontSize: 24,
-          fontWeight: "900",
-          color: COLORS.text,
-          marginBottom: 16,
-        }}
-      >
+      <Text style={[styles.pageTitle, isTiny && styles.pageTitleTiny]}>
         Notifications Coach
+      </Text>
+      <Text style={styles.pageSubtitle}>
+        Alertes, objectifs et messages prioritaires.
       </Text>
       <FlatList
         data={entries}
@@ -112,7 +157,61 @@ export default function CoachNotificationsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
         contentContainerStyle={{ paddingBottom: 40 }}
+        ListEmptyComponent={
+          <Text style={styles.empty}>Aucune notification pour le moment.</Text>
+        }
       />
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  pageTitle: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginBottom: 16,
+  },
+  pageTitleTiny: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  pageSubtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 12,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  subtle: {
+    color: COLORS.textMuted,
+  },
+  empty: {
+    color: COLORS.textMuted,
+    marginTop: 12,
+  },
+  guestCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    padding: 16,
+    backgroundColor: COLORS.surface,
+  },
+  guestTitle: {
+    ...TYPO.title,
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  guestText: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 12,
+  },
+  guestActions: {
+    flexDirection: "row",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+});

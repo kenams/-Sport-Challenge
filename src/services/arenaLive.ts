@@ -1,8 +1,9 @@
 // src/services/arenaLive.ts
 import { supabase } from "../supabase";
 
-const SIGNAL_BASE_URL =
-  process.env.EXPO_PUBLIC_ARENA_SIGNAL_URL || "https://arena-signal.local";
+const SIGNAL_BASE_URL = (process.env.EXPO_PUBLIC_ARENA_SIGNAL_URL || "")
+  .trim()
+  .replace(/\/$/, "");
 export const ARENA_FAIR_PLAY_THRESHOLD = 60;
 
 export type ArenaRoom = {
@@ -23,6 +24,9 @@ type CreateRoomPayload = {
 export async function createArenaRoom(payload: CreateRoomPayload) {
   await ensureFairPlayAccess();
   const token = await getAuthToken();
+  if (!SIGNAL_BASE_URL) {
+    throw new Error("ARENA_SIGNAL_URL manquante");
+  }
   const res = await fetch(`${SIGNAL_BASE_URL}/rooms`, {
     method: "POST",
     headers: {
@@ -36,7 +40,8 @@ export async function createArenaRoom(payload: CreateRoomPayload) {
   });
 
   if (!res.ok) {
-    throw new Error("Impossible de creer la salle live");
+    const message = await res.text();
+    throw new Error(message || "Impossible de creer la salle live");
   }
 
   return (await res.json()) as ArenaRoom;
@@ -45,6 +50,9 @@ export async function createArenaRoom(payload: CreateRoomPayload) {
 export async function joinArenaRoom(roomId: string) {
   await ensureFairPlayAccess();
   const token = await getAuthToken();
+  if (!SIGNAL_BASE_URL) {
+    throw new Error("ARENA_SIGNAL_URL manquante");
+  }
   const res = await fetch(`${SIGNAL_BASE_URL}/rooms/${roomId}/join`, {
     method: "POST",
     headers: {
@@ -54,7 +62,8 @@ export async function joinArenaRoom(roomId: string) {
   });
 
   if (!res.ok) {
-    throw new Error("Impossible de rejoindre la salle");
+    const message = await res.text();
+    throw new Error(message || "Impossible de rejoindre la salle");
   }
 
   return (await res.json()) as ArenaRoom;
@@ -66,7 +75,10 @@ export async function sendSignal(
   payload: any
 ) {
   const token = await getAuthToken();
-  await fetch(`${SIGNAL_BASE_URL}/rooms/${roomId}/signal`, {
+  if (!SIGNAL_BASE_URL) {
+    throw new Error("ARENA_SIGNAL_URL manquante");
+  }
+  const res = await fetch(`${SIGNAL_BASE_URL}/rooms/${roomId}/signal`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -74,6 +86,10 @@ export async function sendSignal(
     },
     body: JSON.stringify({ type, payload }),
   });
+  if (!res.ok) {
+    const message = await res.text();
+    throw new Error(message || "Erreur de signalisation");
+  }
 }
 
 async function getAuthToken() {
@@ -94,7 +110,7 @@ async function ensureFairPlayAccess() {
     .select("fair_play_score")
     .eq("user_id", user.id)
     .maybeSingle();
-  const score = (stats as any)?.fair_play_score ?? 100;
+    const score = (stats as any)?.fair_play_score ?? 100;
   if (score < ARENA_FAIR_PLAY_THRESHOLD) {
     const error = new Error("FAIR_PLAY_LOCKED");
     (error as any).code = "FAIR_PLAY_LOCKED";

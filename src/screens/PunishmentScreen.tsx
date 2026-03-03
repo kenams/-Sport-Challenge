@@ -1,11 +1,12 @@
 // src/screens/PunishmentScreen.tsx
 import React, { useEffect, useState } from "react";
-import { View, Text, Button, Alert, TextInput } from "react-native";
+import { View, Text, Alert, TextInput, StyleSheet } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import { COLORS } from "../theme";
+import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
+import AppButton from "../components/AppButton";
 
- type Props = {
+type Props = {
   route: { params: { adsRemaining: number; punishmentId: number } };
   navigation: any;
 };
@@ -28,7 +29,7 @@ export default function PunishmentScreen({ route, navigation }: Props) {
     if (!proofNote.trim()) {
       Alert.alert(
         "Preuve requise",
-        "Decris ta preuve (lien video, explication) avant de valider."
+        "D\u00e9cris ta preuve (lien vid\u00e9o, explication) avant de valider."
       );
       return;
     }
@@ -72,18 +73,21 @@ export default function PunishmentScreen({ route, navigation }: Props) {
             user_id: userId,
             type: "punishment_resolved",
             challenge_id: null,
-            message: "Punition soldee (+3 fair-play)",
+            message: "Punition soldée (+3 fair-play)",
           });
         }
         Alert.alert(
-          "Punition terminee !",
-          "Tu peux a nouveau faire des defis classes (fair-play +3)."
+          "Punition termin\u00e9e !",
+          "Tu peux \u00e0 nouveau faire des d\u00e9fis class\u00e9s (fair-play +3)."
         );
         navigation.goBack();
       }
     } catch (e: any) {
       console.log(e);
-      Alert.alert("Erreur", e.message || "Impossible de mettre a jour la punition");
+      Alert.alert(
+        "Erreur",
+        e.message || "Impossible de mettre à jour la punition"
+      );
     } finally {
       setLoading(false);
     }
@@ -92,26 +96,10 @@ export default function PunishmentScreen({ route, navigation }: Props) {
   return (
     <ScreenContainer>
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <Text
-          style={{
-            fontSize: 22,
-            fontWeight: "900",
-            color: COLORS.text,
-            marginBottom: 10,
-          }}
-        >
-          Punition active
-        </Text>
+        <Text style={styles.pageTitle}>Punition active</Text>
 
-        <Text
-          style={{
-            fontSize: 15,
-            color: COLORS.textMuted,
-            textAlign: "center",
-            marginBottom: 20,
-          }}
-        >
-          Tu as perdu une battle classee.{"\n"}
+        <Text style={styles.pageSubtitle}>
+          Tu as perdu une battle class\u00e9e.{"\n"}
           Tu dois regarder {remaining} pub(s) pour rejouer.
         </Text>
 
@@ -131,15 +119,34 @@ export default function PunishmentScreen({ route, navigation }: Props) {
           }}
         />
 
-        <Button
-          title={loading ? "Lecture en cours..." : "Regarder une pub"}
+        <AppButton
+          label={loading ? "Lecture en cours..." : "Regarder une pub"}
           onPress={simulateWatchAd}
+          loading={loading}
         />
 
         <View style={{ height: 16 }} />
 
-        <Button title="Retour" onPress={() => navigation.goBack()} />
+        <AppButton
+          label="Retour"
+          variant="ghost"
+          onPress={() => navigation.goBack()}
+        />
       </View>
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  pageTitle: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginBottom: 10,
+  },
+  pageSubtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+});

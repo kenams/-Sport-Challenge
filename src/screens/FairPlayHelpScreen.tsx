@@ -1,8 +1,8 @@
 // src/screens/FairPlayHelpScreen.tsx
 import React from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
-import { COLORS } from "../theme";
+import { COLORS, TYPO } from "../theme";
 import AppButton from "../components/AppButton";
 
 const tips = [
@@ -29,23 +29,18 @@ const tips = [
 ];
 
 export default function FairPlayHelpScreen({ navigation }: any) {
+  const { width } = useWindowDimensions();
+  const isTiny = width < 420;
   return (
     <ScreenContainer>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 40 }}
       >
-        <Text
-          style={{
-            fontSize: 24,
-            fontWeight: "900",
-            color: COLORS.text,
-            marginBottom: 12,
-          }}
-        >
+        <Text style={[styles.pageTitle, isTiny && styles.pageTitleTiny]}>
           Regagner ton fair-play
         </Text>
-        <Text style={{ color: COLORS.textMuted, marginBottom: 18 }}>
+        <Text style={styles.pageSubtitle}>
           Chaque action positive te rend crédible. Combine ces étapes pour
           rouvrir l'accès Arena.
         </Text>
@@ -62,29 +57,16 @@ export default function FairPlayHelpScreen({ navigation }: any) {
               backgroundColor: COLORS.surface,
             }}
           >
-            <Text
-              style={{
-                fontSize: 16,
-                fontWeight: "800",
-                color: COLORS.text,
-                marginBottom: 6,
-              }}
-            >
+            <Text style={styles.tipTitle}>
               {tip.title}
             </Text>
-            <Text style={{ color: COLORS.textMuted, fontSize: 13 }}>
+            <Text style={styles.tipText}>
               {tip.description}
             </Text>
           </View>
         ))}
 
-        <Text
-          style={{
-            color: COLORS.textMuted,
-            fontSize: 12,
-            marginBottom: 20,
-          }}
-        >
+        <Text style={styles.note}>
           Bonus : laisse un admin vérifier tes preuves sur Discord pour un boost
           express (+5).
         </Text>
@@ -94,3 +76,34 @@ export default function FairPlayHelpScreen({ navigation }: any) {
     </ScreenContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  pageTitle: {
+    ...TYPO.display,
+    color: COLORS.text,
+    marginBottom: 12,
+  },
+  pageTitleTiny: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
+  pageSubtitle: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 18,
+  },
+  tipTitle: {
+    ...TYPO.title,
+    color: COLORS.text,
+    marginBottom: 6,
+  },
+  tipText: {
+    ...TYPO.body,
+    color: COLORS.textMuted,
+  },
+  note: {
+    ...TYPO.subtitle,
+    color: COLORS.textMuted,
+    marginBottom: 20,
+  },
+});
