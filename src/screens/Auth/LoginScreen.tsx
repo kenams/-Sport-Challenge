@@ -30,7 +30,7 @@ export default function LoginScreen({ navigation }: any) {
   const isTiny = width < 420;
 
   const buildEmail = (value: string) =>
-    value.trim().toLowerCase().replace(/\s+/g, "") + "@test.local";
+    value.trim().toLowerCase().replace(/\s+/g, "") + "@immortalk.app";
 
   const TEST_PSEUDO =
     process.env.EXPO_PUBLIC_TEST_PSEUDO || "testcoach";
@@ -64,7 +64,6 @@ export default function LoginScreen({ navigation }: any) {
         {
           user_id: userId,
           points: 820,
-          level: 5,
           title: "Warrior",
           fair_play_score: 96,
         },

@@ -4,7 +4,7 @@
 - Execute `supabase/schema.sql` in the SQL editor of your Supabase project.
 
 ## 2) Storage
-- Create a bucket `videos` (public or signed URLs).
+- Create a bucket `challenge-videos` (public or signed URLs).
 
 ## 3) Edge Function (Arena Live signal)
 - Deploy the function in `supabase/functions/arena-signal`.

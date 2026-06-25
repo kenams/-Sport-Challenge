@@ -1,0 +1,34 @@
+127.0.0.1 - - [04/May/2026 00:32:50] "HEAD /immortal-arena-test-arm64.apk HTTP/1.1" 200 -
+192.168.1.100 - - [04/May/2026 00:32:57] "HEAD /immortal-arena-test-arm64.apk HTTP/1.1" 200 -
+192.168.1.51 - - [04/May/2026 00:35:46] "GET /immortal-arena-test-arm64.apk HTTP/1.1" 200 -
+192.168.1.100 - - [04/May/2026 00:45:49] "HEAD /immortal-arena-test-arm64.apk HTTP/1.1" 200 -
+192.168.1.51 - - [04/May/2026 00:51:01] "GET /immortal-arena-test-arm64.apk HTTP/1.1" 200 -
+192.168.1.51 - - [04/May/2026 00:51:54] "GET /immortal-arena-test-arm64.apk HTTP/1.1" 304 -
+----------------------------------------
+Exception occurred during processing of request from ('192.168.1.51', 44116)
+Traceback (most recent call last):
+  File "C:\Python313\Lib\socketserver.py", line 692, in process_request_thread
+    self.finish_request(request, client_address)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\http\server.py", line 1317, in finish_request
+    self.RequestHandlerClass(request, client_address, self,
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                             directory=args.directory)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\http\server.py", line 672, in __init__
+    super().__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Python313\Lib\socketserver.py", line 761, in __init__
+    self.handle()
+    ~~~~~~~~~~~^^
+  File "C:\Python313\Lib\http\server.py", line 436, in handle
+    self.handle_one_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "C:\Python313\Lib\http\server.py", line 404, in handle_one_request
+    self.raw_requestline = self.rfile.readline(65537)
+                           ~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "C:\Python313\Lib\socket.py", line 719, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+ConnectionResetError: [WinError 10054] Une connexion existante a dû être fermée par l’hôte distant
+----------------------------------------

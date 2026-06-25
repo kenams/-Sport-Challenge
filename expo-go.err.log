@@ -1,0 +1,28 @@
+The following packages should be updated for best compatibility with the installed expo version:
+  expo@54.0.33 - expected version: ~54.0.34
+  expo-dev-client@6.0.20 - expected version: ~6.0.21
+  expo-file-system@19.0.21 - expected version: ~19.0.22
+  expo-image-picker@17.0.10 - expected version: ~17.0.11
+  expo-notifications@0.32.16 - expected version: ~0.32.17
+Your project may not work correctly until you install the expected versions of the packages.
+C:\Users\kenam\Application-Projet-K\sport-challenge-app\node_modules\expo\node_modules\@expo\cli\build\src\utils\errors.js:130
+    throw error;
+    ^
+
+Error: ENOENT: no such file or directory, watch 'C:\Users\kenam\Application-Projet-K\sport-challenge-app\node_modules\react-native-screens\android\.cxx\RelWithDebInfo\724d54p4\armeabi-v7a\CMakeFiles\CMakeTmp\CMakeFiles'
+    at FSWatcher.<computed> (node:internal/fs/watchers:247:19)
+    at Object.watch (node:fs:2468:36)
+    at FallbackWatcher._watchdir (C:\Users\kenam\Application-Projet-K\sport-challenge-app\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:119:33)
+    at C:\Users\kenam\Application-Projet-K\sport-challenge-app\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:219:22
+    at Walker.<anonymous> (C:\Users\kenam\Application-Projet-K\sport-challenge-app\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:358:5)
+    at Walker.emit (node:events:524:28)
+    at C:\Users\kenam\Application-Projet-K\sport-challenge-app\node_modules\walker\lib\walker.js:69:16
+    at FSReqCallback.oncomplete (node:fs:187:23) {
+  errno: -4058,
+  syscall: 'watch',
+  code: 'ENOENT',
+  path: 'C:\\Users\\kenam\\Application-Projet-K\\sport-challenge-app\\node_modules\\react-native-screens\\android\\.cxx\\RelWithDebInfo\\724d54p4\\armeabi-v7a\\CMakeFiles\\CMakeTmp\\CMakeFiles',
+  filename: 'C:\\Users\\kenam\\Application-Projet-K\\sport-challenge-app\\node_modules\\react-native-screens\\android\\.cxx\\RelWithDebInfo\\724d54p4\\armeabi-v7a\\CMakeFiles\\CMakeTmp\\CMakeFiles'
+}
+
+Node.js v22.12.0

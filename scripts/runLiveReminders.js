@@ -1,11 +1,33 @@
 require("./loadEnv");
 const { createClient } = require("@supabase/supabase-js");
 
+async function sendPush(supabaseUrl, serviceKey, userId, title, body) {
+  const url = `${supabaseUrl}/functions/v1/send-push`;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ user_id: userId, title, body }),
+    });
+    const result = await res.json();
+    if (result.ok) {
+      console.log(`[cron:reminders] push envoyÃ© Ã  ${userId}`);
+    } else {
+      console.log(`[cron:reminders] push ignorÃ© (${result.reason ?? "inconnu"})`);
+    }
+  } catch (err) {
+    console.error("[cron:reminders] push error", err.message);
+  }
+}
+
 async function main() {
   const url = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !serviceKey) {
-    console.error("[cron:reminders] SUPABASE_URL ou clé service manquante");
+    console.error("[cron:reminders] SUPABASE_URL ou clÃ© service manquante");
     process.exit(1);
   }
 
@@ -27,30 +49,39 @@ async function main() {
   }
 
   if (!lives || lives.length === 0) {
-    console.log("[cron:reminders] aucun live à rappeler");
+    console.log("[cron:reminders] aucun live Ã  rappeler");
     return;
   }
 
   for (const live of lives) {
     const scheduledDate = new Date(live.scheduled_at);
-    const body = `${live.title} démarre à ${scheduledDate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}. Prépare ton Arena Live.`;
+    const timeStr = scheduledDate.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const body = `${live.title} dÃ©marre Ã  ${timeStr}. PrÃ©pare ton Arena Live.`;
+    const title = "Live dans 15 min";
 
     const { error: notifError } = await supabase.from("coach_notifications").insert({
       user_id: live.user_id,
-      title: "Live dans 15 min",
+      title,
       body,
       type: "live_reminder",
     });
+
     if (notifError) {
       console.error("[cron:reminders] notif error", notifError.message);
       continue;
     }
 
+    await sendPush(url, serviceKey, live.user_id, title, body);
+
     await supabase
       .from("lives_schedule")
       .update({ reminder_sent: true })
       .eq("id", live.id);
-    console.log(`[cron:reminders] rappel envoyé pour live #${live.id}`);
+
+    console.log(`[cron:reminders] rappel envoyÃ© pour live #${live.id}`);
   }
 }
 
@@ -58,4 +89,3 @@ main().catch((err) => {
   console.error("[cron:reminders]", err.message || err);
   process.exit(1);
 });
-

@@ -34,7 +34,17 @@
     },
     "plugins": [
       "expo-camera",
-      "expo-video"
+      "expo-video",
+      "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/immortal-k-logo.png",
+          "color": "#FACC15",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ]
     ]
   }
 }

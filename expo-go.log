@@ -1,0 +1,21 @@
+
+> immortal-k@1.0.0 start
+> expo start --go --host lan --port 8082
+
+env: load .env.local
+env: export EXPO_PUBLIC_SUPABASE_URL EXPO_PUBLIC_SUPABASE_ANON_KEY EXPO_PUBLIC_ARENA_SIGNAL_URL EXPO_PUBLIC_DEMO_MODE SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY
+Starting project at C:\Users\kenam\Application-Projet-K\sport-challenge-app
+Starting Metro Bundler
+Waiting on http://localhost:8082
+Logs for your project will appear below.
+ ERROR  Project is incompatible with this version of Expo Go
+
+• The installed version of Expo Go is for SDK 55.
+• The project you opened uses SDK 54.
+
+How to fix this error:
+Either upgrade this project to SDK 55 or install an older version of Expo Go that is compatible with your project.
+
+<a href='https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/'>Learn how to upgrade to SDK 55.</a>
+
+<a href='https://expo.dev/go?sdkVersion=54&platform=android&device=true'>Learn how to install Expo Go for SDK 54</a>.

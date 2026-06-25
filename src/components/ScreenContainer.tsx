@@ -44,8 +44,8 @@ export default function ScreenContainer({
     : isNarrow
      ? 14
     : 16;
-  // Footer always shown when showFooter is true (web + mobile).
-  const shouldShowFooter = showFooter;
+  // Native screens already sit inside the React Navigation tab bar.
+  const shouldShowFooter = showFooter && isWeb;
   const footerPadding = shouldShowFooter ? 96 : 12;
   const shouldShowCredit = !showHeader;
 

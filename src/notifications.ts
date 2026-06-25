@@ -3,7 +3,19 @@ import * as Notifications from "expo-notifications";
 import { supabase } from "./supabase";
 import { Platform } from "react-native";
 
+const PROJECT_ID = "76d45c0a-9381-45e3-a60f-12ded6768767";
+
 let cachedToken: string | null = null;
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 export async function registerForPushNotifications() {
   const { data: session } = await supabase.auth.getSession();
@@ -19,7 +31,7 @@ export async function registerForPushNotifications() {
 
   if (finalStatus !== "granted") return;
 
-  const tokenData = await Notifications.getExpoPushTokenAsync();
+  const tokenData = await Notifications.getExpoPushTokenAsync({ projectId: PROJECT_ID });
   const token = tokenData.data;
 
   cachedToken = token;
@@ -33,23 +45,25 @@ export async function registerForPushNotifications() {
     });
 
   if (Platform.OS === "android") {
-    Notifications.setNotificationChannelAsync("default", {
+    await Notifications.setNotificationChannelAsync("default", {
       name: "default",
       importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 250, 250, 250],
     });
   }
 }
 
 export async function notifyCoachObjective(message: string) {
-  if (!cachedToken) return;
   await Notifications.scheduleNotificationAsync({
     content: {
       title: "Coach Immortal-K",
       body: message,
+      sound: true,
     },
     trigger: null,
   });
 }
+
 interface NotificationBoxEntry {
   id: string;
   title: string;
@@ -70,4 +84,16 @@ export async function logNotification(
     body: entry.body,
     type,
   });
+}
+
+export function setupNotificationListeners(
+  onNotification: (n: Notifications.Notification) => void,
+  onResponse: (r: Notifications.NotificationResponse) => void
+) {
+  const subReceived = Notifications.addNotificationReceivedListener(onNotification);
+  const subResponse = Notifications.addNotificationResponseReceivedListener(onResponse);
+  return () => {
+    subReceived.remove();
+    subResponse.remove();
+  };
 }

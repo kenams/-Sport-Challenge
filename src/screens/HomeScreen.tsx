@@ -1,1 +1,1 @@
-export { default } from "./SimpleHomeScreen";
+export { default } from "./ChallengesScreen";
