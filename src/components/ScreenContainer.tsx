@@ -102,7 +102,7 @@ export default function ScreenContainer({
           pointerEvents="none"
           style={[styles.credit, { bottom: (insets.bottom || 0) + 10 }]}
         >
-          <Text style={styles.creditText}>Developed by Kah-Digital</Text>
+          <Text style={styles.creditText}>Developed by KAH Digital Studio</Text>
         </View>
       )}
     </SafeAreaView>

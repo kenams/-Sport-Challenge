@@ -171,7 +171,7 @@ export default function OnboardingScreen({ navigation }: any) {
       </TouchableOpacity>
 
       <View style={styles.footer}>
-        <Text style={styles.footerText}>Kah-Digital · IMMORTAL-K</Text>
+        <Text style={styles.footerText}>KAH Digital Studio · IMMORTAL-K</Text>
       </View>
     </View>
   );

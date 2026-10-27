@@ -201,7 +201,7 @@ export default function BrandHeader() {
               textTransform: "uppercase",
             }}
           >
-            Kah-Digital
+            KAH Digital Studio
           </Text>
         </View>
       </TouchableOpacity>
