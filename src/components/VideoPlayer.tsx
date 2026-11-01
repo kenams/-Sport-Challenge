@@ -26,6 +26,7 @@ type Props = {
   isLooping?: boolean;
   previewSeconds?: number;
   onPreviewEnd?: () => void;
+  onError?: () => void;
   allowUserToggle?: boolean;
   showOverlayIcon?: boolean;
   showControlButton?: boolean;
@@ -43,6 +44,7 @@ export default function VideoPlayer({
   isLooping = false,
   previewSeconds,
   onPreviewEnd,
+  onError,
   allowUserToggle = false,
   showOverlayIcon = true,
   showControlButton = true,
@@ -61,6 +63,13 @@ export default function VideoPlayer({
       videoPlayer.play();
     }
   });
+
+  useEffect(() => {
+    const subscription = player.addListener("statusChange", ({ status }) => {
+      if (status === "error") onError?.();
+    });
+    return () => subscription.remove();
+  }, [player, onError]);
 
   useEffect(() => {
     player.loop = isLooping;
@@ -90,7 +99,7 @@ export default function VideoPlayer({
   }, [player, previewSeconds, effectiveShouldPlay, onPreviewEnd]);
 
   useEffect(() => {
-    if (!allowUserToggle) {
+    if (!allowUserToggle || nativeControls) {
       setUserPlaying(shouldPlay && autoPlay && !hasInteracted);
       return;
     }
@@ -101,7 +110,7 @@ export default function VideoPlayer({
     if (!hasInteracted) {
       setUserPlaying(autoPlay);
     }
-  }, [allowUserToggle, shouldPlay, autoPlay, hasInteracted]);
+  }, [allowUserToggle, nativeControls, shouldPlay, autoPlay, hasInteracted]);
 
   const handleToggle = () => {
     if (!allowUserToggle || !shouldPlay) return;
@@ -110,7 +119,7 @@ export default function VideoPlayer({
   };
 
   useEffect(() => {
-    if (!allowUserToggle || Platform.OS !== "web") return;
+    if (!allowUserToggle || nativeControls || Platform.OS !== "web") return;
     const handler = (event: KeyboardEvent) => {
       if (!shouldPlay) return;
       const target = event.target as HTMLElement | null;
@@ -126,7 +135,7 @@ export default function VideoPlayer({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [allowUserToggle, shouldPlay]);
+  }, [allowUserToggle, nativeControls, shouldPlay]);
 
   useEffect(() => {
     if (Platform.OS === "web") {
@@ -154,7 +163,7 @@ export default function VideoPlayer({
     };
   }, [player]);
 
-  if (!allowUserToggle) {
+  if (!allowUserToggle || nativeControls) {
     return (
       <VideoView
         player={player}

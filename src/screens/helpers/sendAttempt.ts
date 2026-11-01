@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../../supabase";
 import { submitAttempt } from "../../services/api";
-import { discardUploadedVideo, uploadAttemptVideo, type VideoCandidate } from "../../services/video";
+import { checkVideoCandidate, discardUploadedVideo, uploadAttemptVideo, type VideoCandidate } from "../../services/video";
+import { FALLBACK_FORMATS } from "../../domain/formats";
 import type { FormatKey } from "../../domain/types";
 
 export type SendResult = { ok: true; attemptId: string } | { ok: false; message: string };
@@ -16,6 +17,10 @@ export async function sendAttempt(input: {
   challengeId?: string | null;
   recipientId?: string | null;
 }): Promise<SendResult> {
+  const format = FALLBACK_FORMATS.find((item) => item.key === input.format);
+  if (!format) return { ok: false, message: "Format d’épreuve inconnu." };
+  const check = checkVideoCandidate(input.video, format.max_video_seconds);
+  if (!check.ok) return check;
   const upload = await uploadAttemptVideo(input.userId, input.video);
   if (!upload.ok) return { ok: false, message: upload.message };
   const saved = await submitAttempt({

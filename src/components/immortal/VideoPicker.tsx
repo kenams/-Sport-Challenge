@@ -4,7 +4,7 @@ import * as ImagePicker from "expo-image-picker";
 import VideoPlayer from "../VideoPlayer";
 import { ActionButton, FieldLabel, InlineMessage } from "./AttemptFormParts";
 import { COLORS } from "../../theme";
-import { checkVideoCandidate, type VideoCandidate } from "../../services/video";
+import { checkVideoCandidate, readWebVideoDuration, type VideoCandidate } from "../../services/video";
 
 type Props = {
   value: VideoCandidate | null;
@@ -19,6 +19,7 @@ type Denied = "camera" | "library" | null;
 
 function sizeLabel(bytes?: number | null): string {
   if (!bytes) return "";
+  if (bytes < 0.1 * 1024 * 1024) return "< 0,1 Mo";
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} Mo`;
 }
 
@@ -49,7 +50,9 @@ export default function VideoPicker({ value, onChange, maxSeconds, disabled, err
         uri: asset.uri,
         mimeType: asset.mimeType ?? null,
         fileSize: asset.fileSize ?? null,
-        durationSeconds: typeof asset.duration === "number" ? Math.round(asset.duration / 1000) : null,
+        durationSeconds: Platform.OS === "web"
+          ? await readWebVideoDuration(asset.uri)
+          : typeof asset.duration === "number" ? asset.duration / 1000 : null,
       };
       const check = checkVideoCandidate(candidate, maxSeconds);
       if (!check.ok) {
@@ -57,7 +60,11 @@ export default function VideoPicker({ value, onChange, maxSeconds, disabled, err
         return;
       }
       onChange(candidate);
-    } catch {
+    } catch (caught) {
+      if (caught instanceof Error && caught.message === "video_metadata_unavailable") {
+        setProblem("Impossible de lire cette vidéo. Choisis un fichier MP4, MOV ou WebM lisible.");
+        return;
+      }
       setProblem(mode === "camera" ? "Impossible d'ouvrir la caméra. Choisis plutôt une vidéo dans ta galerie." : "Impossible d'ouvrir la galerie. Réessaie dans un instant.");
     } finally {
       setBusy(false);
@@ -78,9 +85,9 @@ export default function VideoPicker({ value, onChange, maxSeconds, disabled, err
 
       {value ? (
         <View style={{ gap: 10 }}>
-          <VideoPlayer uri={value.uri} style={styles.preview} shouldPlay={false} autoPlay={false} allowUserToggle nativeControls />
+          <VideoPlayer uri={value.uri} style={styles.preview} shouldPlay autoPlay={false} allowUserToggle nativeControls />
           <Text style={styles.fileInfo}>
-            Vidéo prête{value.durationSeconds ? ` · ${value.durationSeconds} s` : ""}
+            Vidéo prête{value.durationSeconds ? ` · ${Math.ceil(value.durationSeconds)} s` : ""}
             {value.fileSize ? ` · ${sizeLabel(value.fileSize)}` : ""}
           </Text>
           <ActionButton label="Changer de vidéo" variant="ghost" onPress={() => onChange(null)} disabled={disabled} hint="Retire cette vidéo pour en choisir une autre" />
