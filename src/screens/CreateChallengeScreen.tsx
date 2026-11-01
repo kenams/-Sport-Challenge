@@ -1,325 +1,283 @@
-// src/screens/CreateChallengeScreen.tsx
-import React, { useEffect, useState } from "react";
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { FontAwesome5 } from "@expo/vector-icons";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import ScreenContainer from "../components/ScreenContainer";
-import { COLORS, TYPO } from "../theme";
-import AppButton from "../components/AppButton";
-import { supabase } from "../supabase";
+import RulesCard from "../components/immortal/RulesCard";
+import FormatPicker from "../components/immortal/FormatPicker";
+import VideoPicker from "../components/immortal/VideoPicker";
+import { ActionButton, FieldLabel, InlineMessage, ScoreField, SubmissionSuccess, formStyles } from "../components/immortal/AttemptFormParts";
+import { listFormats, searchPlayers } from "../services/api";
+import type { VideoCandidate } from "../services/video";
+import { FALLBACK_FORMATS, formatByKey } from "../domain/formats";
+import type { ChallengeFormat, FormatKey } from "../domain/types";
+import { COLORS } from "../theme";
+import { TITLE_MAX, cleanTitle, isNetworkMessage, parseDeclaredScore } from "./helpers/attempts";
+import { sendAttempt, useUserId } from "./helpers/sendAttempt";
 
-const SPORTS = [
-  "running", "pushups", "traction", "squat", "fitness",
-  "basket", "foot", "nage", "course", "yoga", "mma",
-  "corde", "vélo", "natation", "autre",
-];
+type Player = { user_id: string; pseudo: string | null; city: string | null };
 
-const UNITS: Record<string, string[]> = {
-  running: ["km", "m", "min"],
-  pushups: ["reps"],
-  traction: ["reps"],
-  squat: ["reps"],
-  fitness: ["reps", "min"],
-  basket: ["tirs", "reps"],
-  foot: ["plots", "buts"],
-  nage: ["m", "km"],
-  course: ["m", "km", "min"],
-  yoga: ["postures", "min"],
-  mma: ["combos", "reps"],
-  corde: ["sauts"],
-  vélo: ["km", "min"],
-  natation: ["m", "km"],
-  autre: ["reps", "sec", "min", "km", "m"],
-};
+export default function CreateChallengeScreen() {
+  const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const params = (route.params ?? {}) as { formatKey?: FormatKey; recipientId?: string; recipientPseudo?: string };
+  const userId = useUserId();
 
-export default function CreateChallengeScreen({ navigation }: any) {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [pseudo, setPseudo] = useState<string | null>(null);
-
+  const [formats, setFormats] = useState<ChallengeFormat[]>(FALLBACK_FORMATS);
+  const [formatKey, setFormatKey] = useState<FormatKey | null>(params.formatKey ?? null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [sport, setSport] = useState("");
-  const [targetValue, setTargetValue] = useState("");
-  const [unit, setUnit] = useState("");
-  const [ranked, setRanked] = useState(false);
-  const [betEnabled, setBetEnabled] = useState(false);
-  const [betAmount, setBetAmount] = useState("");
-  const [videoUrl, setVideoUrl] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [score, setScore] = useState("");
+  const [video, setVideo] = useState<VideoCandidate | null>(null);
+  const [recipient, setRecipient] = useState<{ id: string; pseudo: string | null } | null>(
+    params.recipientId ? { id: params.recipientId, pseudo: params.recipientPseudo ?? null } : null
+  );
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Player[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [showErrors, setShowErrors] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
+  const busy = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
-    supabase.auth.getSession().then(async ({ data }) => {
-      const uid = data.session?.user.id;
-      if (!uid || !mounted) return;
-      setUserId(uid);
-      const { data: prof } = await supabase.from("profiles").select("pseudo").eq("user_id", uid).maybeSingle();
-      if (mounted && prof) setPseudo((prof as any).pseudo ?? null);
+    let alive = true;
+    listFormats().then((list) => {
+      if (alive && list.length > 0) setFormats(list);
     });
-    return () => { mounted = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
-  const selectSport = (s: string) => {
-    setSport(s);
-    const units = UNITS[s] || ["reps"];
-    setUnit(units[0]);
+  useEffect(() => {
+    if (params.formatKey) setFormatKey(params.formatKey);
+    if (params.recipientId) setRecipient({ id: params.recipientId, pseudo: params.recipientPseudo ?? null });
+  }, [params.formatKey, params.recipientId, params.recipientPseudo]);
+
+  useEffect(() => {
+    const text = query.trim();
+    setSearchError(null);
+    if (text.length < 2) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    let alive = true;
+    const timer = setTimeout(async () => {
+      const result = await searchPlayers(text);
+      if (!alive) return;
+      setSearching(false);
+      if (result.error) {
+        setSearchError(result.error);
+        setResults([]);
+      } else {
+        setResults((result.data ?? []).filter((player) => player.user_id !== userId));
+      }
+    }, 350);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [query, userId]);
+
+  const format = useMemo(() => (formatKey ? formatByKey(formats, formatKey) ?? null : null), [formats, formatKey]);
+  const parsed = format ? parseDeclaredScore(score, format.max_score) : null;
+
+  const reset = () => {
+    setFormatKey(null);
+    setTitle("");
+    setScore("");
+    setVideo(null);
+    setRecipient(null);
+    setQuery("");
+    setShowErrors(false);
+    setSubmitError(null);
+    setOffline(false);
+    setCreatedId(null);
+    setRulesOpen(false);
   };
 
-  const handleSubmit = async () => {
-    if (!userId) return Alert.alert("Connexion requise", "Connecte-toi pour publier un défi.");
-    if (!title.trim()) return Alert.alert("Champ manquant", "Renseigne un titre.");
-    if (!description.trim()) return Alert.alert("Champ manquant", "Renseigne une description.");
-    if (!sport) return Alert.alert("Sport manquant", "Sélectionne un sport.");
-    const target = parseFloat(targetValue);
-    if (isNaN(target) || target <= 0) return Alert.alert("Objectif invalide", "Renseigne un objectif numérique.");
-    if (!unit.trim()) return Alert.alert("Unité manquante", "Choisis une unité.");
-
-    setLoading(true);
+  const submit = async () => {
+    if (busy.current) return;
+    setShowErrors(true);
+    setSubmitError(null);
+    setOffline(false);
+    if (!format || !parsed || !parsed.ok || !video) return;
+    if (!userId) {
+      setSubmitError("Connecte-toi pour lancer un défi.");
+      return;
+    }
+    busy.current = true;
+    setSubmitting(true);
     try {
-      const payload: any = {
-        user_id: userId,
-        pseudo: pseudo || "Joueur",
-        title: title.trim(),
-        description: description.trim(),
-        sport,
-        target_value: target,
-        unit: unit.trim(),
-        ranked,
-        bet_enabled: betEnabled,
-        bet_amount: betEnabled ? (parseFloat(betAmount) || 0) : 0,
-      };
-      if (videoUrl.trim()) payload.video_url = videoUrl.trim();
-
-      const { data: inserted, error } = await supabase
-        .from("challenges")
-        .insert(payload)
-        .select("id")
-        .single();
-
-      if (error) throw error;
-
-      await supabase.from("activities").insert({
-        user_id: userId,
-        pseudo: pseudo || "Joueur",
-        type: "challenge_created",
-        challenge_id: inserted.id,
-        message: `Nouveau défi : ${title.trim()}`,
+      const result = await sendAttempt({
+        userId,
+        format: format.key,
+        score: parsed.value,
+        video,
+        title: cleanTitle(title),
+        recipientId: recipient?.id ?? null,
       });
-
-      Alert.alert("Défi publié !", "Ton défi est maintenant visible dans l'arène.", [
-        { text: "Voir le défi", onPress: () => navigation?.navigate("ChallengeDetail", { id: inserted.id }) },
-        { text: "OK", onPress: () => navigation?.goBack() },
-      ]);
-    } catch (e: any) {
-      Alert.alert("Erreur", e.message || "Impossible de publier le défi.");
+      if (result.ok) {
+        setCreatedId(result.attemptId);
+      } else if (isNetworkMessage(result.message)) {
+        setOffline(true);
+        setSubmitError("Connexion perdue pendant l'envoi. Ton formulaire et ta vidéo sont conservés : réessaie dès que le réseau revient.");
+      } else {
+        setSubmitError(result.message);
+      }
     } finally {
-      setLoading(false);
+      busy.current = false;
+      setSubmitting(false);
     }
   };
 
-  const availableUnits = sport ? (UNITS[sport] || ["reps"]) : [];
+  const leave = () => {
+    reset();
+    if (navigation.canGoBack()) navigation.goBack();
+  };
+
+  if (createdId) {
+    return (
+      <ScreenContainer>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <SubmissionSuccess
+            kind="challenge"
+            onViewChallenge={() => {
+              const id = createdId;
+              reset();
+              navigation.navigate("ChallengeDetail", { challengeId: id });
+            }}
+            onDone={leave}
+            doneLabel={navigation.canGoBack() ? "Retour" : "Lancer un autre défi"}
+          />
+        </ScrollView>
+      </ScreenContainer>
+    );
+  }
+
+  const videoError = showErrors && !video ? "Ajoute la vidéo de ta performance pour envoyer le défi." : null;
+  const formatError = showErrors && !format ? "Choisis un format d'épreuve." : null;
 
   return (
     <ScreenContainer>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
-
-          {/* Hero */}
-          <View style={styles.hero}>
-            <Text style={styles.kicker}>CRÉATION</Text>
-            <Text style={styles.heroTitle}>Créer un défi</Text>
-            <Text style={styles.subtitle}>Lance un défi propre, motivant et certifiable.</Text>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <View style={{ gap: 4 }}>
+            <Text style={formStyles.heading} accessibilityRole="header">
+              Lancer un défi
+            </Text>
+            <Text style={formStyles.lead}>Filme ta performance, déclare ton score. Une modération humaine la valide avant qu'elle compte.</Text>
           </View>
 
-          {/* Formulaire */}
-          <View style={styles.form}>
+          <View style={formStyles.card}>
+            <FieldLabel>1. Format</FieldLabel>
+            <FormatPicker formats={formats} value={formatKey} onChange={setFormatKey} disabled={submitting} />
+            {formatError ? <InlineMessage tone="error">{formatError}</InlineMessage> : null}
+          </View>
 
-            {/* Titre */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Titre du défi *</Text>
-              <TextInput
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Ex: Pompes explosives 50 reps"
-                placeholderTextColor={COLORS.textMuted}
-                style={styles.input}
-                maxLength={80}
-              />
-              <Text style={styles.charCount}>{title.length}/80</Text>
-            </View>
-
-            {/* Description */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Description *</Text>
-              <TextInput
-                value={description}
-                onChangeText={setDescription}
-                placeholder="Règles, conditions, amplitude requise..."
-                placeholderTextColor={COLORS.textMuted}
-                style={[styles.input, styles.inputMulti]}
-                multiline
-                numberOfLines={3}
-                maxLength={300}
-              />
-              <Text style={styles.charCount}>{description.length}/300</Text>
-            </View>
-
-            {/* Sport */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Sport *</Text>
-              <View style={styles.sportsGrid}>
-                {SPORTS.map((s) => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.sportChip, sport === s && styles.sportChipActive]}
-                    onPress={() => selectSport(s)}
-                  >
-                    <Text style={[styles.sportChipText, sport === s && styles.sportChipTextActive]}>{s}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Objectif + Unité */}
-            <View style={styles.row}>
-              <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Objectif *</Text>
-                <TextInput
-                  value={targetValue}
-                  onChangeText={setTargetValue}
-                  placeholder="50"
-                  placeholderTextColor={COLORS.textMuted}
-                  style={styles.input}
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Unité *</Text>
-                {availableUnits.length > 1 ? (
-                  <View style={styles.unitRow}>
-                    {availableUnits.map((u) => (
-                      <TouchableOpacity
-                        key={u}
-                        style={[styles.unitChip, unit === u && styles.unitChipActive]}
-                        onPress={() => setUnit(u)}
-                      >
-                        <Text style={[styles.unitText, unit === u && styles.unitTextActive]}>{u}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ) : (
-                  <TextInput
-                    value={unit}
-                    onChangeText={setUnit}
-                    placeholder="reps"
-                    placeholderTextColor={COLORS.textMuted}
-                    style={styles.input}
-                  />
-                )}
-              </View>
-            </View>
-
-            {/* URL Vidéo démo */}
-            <View style={styles.field}>
-              <Text style={styles.label}>Vidéo démo (URL optionnelle)</Text>
-              <TextInput
-                value={videoUrl}
-                onChangeText={setVideoUrl}
-                placeholder="https://..."
-                placeholderTextColor={COLORS.textMuted}
-                style={styles.input}
-                autoCapitalize="none"
-                keyboardType="url"
-              />
-            </View>
-
-            {/* Toggles */}
-            <View style={styles.toggleSection}>
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleInfo}>
-                  <FontAwesome5 name="trophy" size={13} color={COLORS.primary} />
-                  <View>
-                    <Text style={styles.toggleLabel}>Défi classé</Text>
-                    <Text style={styles.toggleDesc}>Apparaît dans le classement général</Text>
-                  </View>
+          {format ? (
+            <View style={formStyles.card}>
+              <Pressable
+                onPress={() => setRulesOpen((open) => !open)}
+                accessibilityRole="button"
+                accessibilityState={{ expanded: rulesOpen }}
+                accessibilityLabel={rulesOpen ? "Masquer les règles" : "Lire les règles avant d'envoyer"}
+                style={styles.rulesToggle}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rulesTitle}>Règles du format</Text>
+                  <Text style={styles.rulesSub}>À lire avant de filmer : mouvement, cadrage, score retenu.</Text>
                 </View>
-                <Switch
-                  value={ranked}
-                  onValueChange={setRanked}
-                  trackColor={{ false: "rgba(148,163,184,0.2)", true: COLORS.primary + "66" }}
-                  thumbColor={ranked ? COLORS.primary : "#9CA3AF"}
-                />
-              </View>
-
-              <View style={styles.separator} />
-
-              <View style={styles.toggleRow}>
-                <View style={styles.toggleInfo}>
-                  <FontAwesome5 name="coins" size={13} color="#F59E0B" />
-                  <View>
-                    <Text style={styles.toggleLabel}>Mise de coins</Text>
-                    <Text style={styles.toggleDesc}>Les participants misent des coins</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={betEnabled}
-                  onValueChange={setBetEnabled}
-                  trackColor={{ false: "rgba(148,163,184,0.2)", true: "#F59E0B66" }}
-                  thumbColor={betEnabled ? "#F59E0B" : "#9CA3AF"}
-                />
-              </View>
-
-              {betEnabled && (
-                <View style={styles.field}>
-                  <Text style={styles.label}>Montant de la mise (coins)</Text>
-                  <TextInput
-                    value={betAmount}
-                    onChangeText={setBetAmount}
-                    placeholder="100"
-                    placeholderTextColor={COLORS.textMuted}
-                    style={styles.input}
-                    keyboardType="numeric"
-                  />
-                </View>
-              )}
+                <Text style={styles.rulesChevron}>{rulesOpen ? "Masquer" : "Lire"}</Text>
+              </Pressable>
+              {rulesOpen ? <RulesCard format={format} /> : null}
             </View>
+          ) : null}
 
-            {/* Checklist qualité */}
-            <View style={styles.qualityCard}>
-              <Text style={styles.qualityTitle}>Checklist qualité</Text>
-              {[
-                ["Titre clair et descriptif", !!title.trim()],
-                ["Description avec règles précises", description.length > 20],
-                ["Sport sélectionné", !!sport],
-                ["Objectif défini", !!targetValue && !isNaN(parseFloat(targetValue))],
-              ].map(([label, ok]) => (
-                <View key={String(label)} style={styles.checkRow}>
-                  <FontAwesome5 name={ok ? "check-circle" : "circle"} size={12} color={ok ? "#34D399" : COLORS.textMuted} />
-                  <Text style={[styles.checkLabel, { color: ok ? COLORS.text : COLORS.textMuted }]}>{String(label)}</Text>
-                </View>
-              ))}
-            </View>
-
-            <AppButton
-              label={loading ? "Publication..." : "Publier le défi"}
-              onPress={handleSubmit}
-              loading={loading}
-              style={styles.submitBtn}
+          <View style={formStyles.card}>
+            <FieldLabel optional>2. Titre du défi</FieldLabel>
+            <TextInput
+              value={title}
+              onChangeText={(text) => setTitle(text.slice(0, TITLE_MAX))}
+              editable={!submitting}
+              maxLength={TITLE_MAX}
+              placeholder="Ex. : Mon record à battre"
+              placeholderTextColor={COLORS.textMuted}
+              accessibilityLabel="Titre du défi, facultatif, 80 caractères maximum"
+              style={styles.input}
             />
+            <Text style={styles.counter}>
+              {title.length}/{TITLE_MAX}
+            </Text>
+
+            {format ? (
+              <ScoreField value={score} onChange={setScore} max={format.max_score} disabled={submitting} showError={showErrors} />
+            ) : (
+              <Text style={styles.hint}>Choisis d'abord un format pour déclarer ton score.</Text>
+            )}
           </View>
+
+          <View style={formStyles.card}>
+            <VideoPicker value={video} onChange={setVideo} maxSeconds={format?.max_video_seconds ?? 120} disabled={submitting} error={videoError} />
+          </View>
+
+          <View style={formStyles.card}>
+            <FieldLabel optional>Inviter un ami (défi nominatif)</FieldLabel>
+            {recipient ? (
+              <View style={styles.recipient}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recipientName}>{recipient.pseudo ?? "Joueur"}</Text>
+                  <Text style={styles.hint}>Défi nominatif : seul ce joueur pourra y répondre.</Text>
+                </View>
+                <ActionButton label="Retirer" variant="ghost" fullWidth={false} onPress={() => setRecipient(null)} disabled={submitting} hint="Rend le défi ouvert à tous" />
+              </View>
+            ) : (
+              <>
+                <TextInput
+                  value={query}
+                  onChangeText={setQuery}
+                  editable={!submitting}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  placeholder="Rechercher un pseudo"
+                  placeholderTextColor={COLORS.textMuted}
+                  accessibilityLabel="Rechercher un ami par pseudo"
+                  style={styles.input}
+                />
+                <Text style={styles.hint}>Sans invitation, le défi est ouvert à tous les joueurs.</Text>
+                {searching ? <ActivityIndicator color={COLORS.primary} /> : null}
+                {searchError ? <InlineMessage tone="error">{searchError}</InlineMessage> : null}
+                {!searching && !searchError && query.trim().length >= 2 && results.length === 0 ? <Text style={styles.hint}>Aucun joueur trouvé pour « {query.trim()} ».</Text> : null}
+                {results.map((player) => (
+                  <Pressable
+                    key={player.user_id}
+                    onPress={() => {
+                      setRecipient({ id: player.user_id, pseudo: player.pseudo });
+                      setQuery("");
+                      setResults([]);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Inviter ${player.pseudo ?? "ce joueur"}${player.city ? `, ${player.city}` : ""}`}
+                    style={styles.result}
+                  >
+                    <Text style={styles.recipientName}>{player.pseudo ?? "Joueur"}</Text>
+                    {player.city ? <Text style={styles.hint}>{player.city}</Text> : null}
+                  </Pressable>
+                ))}
+              </>
+            )}
+          </View>
+
+          {submitError ? <InlineMessage tone="error">{submitError}</InlineMessage> : null}
+          {submitting ? <InlineMessage tone="info">Envoi de la vidéo en cours, ne quitte pas l'écran…</InlineMessage> : null}
+
+          <ActionButton label={offline ? "Réessayer l'envoi" : "Envoyer pour validation"} onPress={submit} loading={submitting} disabled={submitting} />
+          <Text style={styles.footnote}>Aucune mise, aucun gain : seul le score validé par la modération compte.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </ScreenContainer>
@@ -327,60 +285,16 @@ export default function CreateChallengeScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { paddingBottom: 80, gap: 16 },
-  hero: {
-    padding: 18, borderRadius: 20, borderWidth: 1,
-    borderColor: "rgba(212,175,55,0.35)", backgroundColor: "rgba(12,12,16,0.92)",
-  },
-  kicker: { fontSize: 11, letterSpacing: 3, color: COLORS.textMuted, fontWeight: "700" },
-  heroTitle: { ...TYPO.display, color: COLORS.text, marginTop: 6 },
-  subtitle: { ...TYPO.subtitle, color: COLORS.textMuted, marginTop: 4 },
-  form: {
-    padding: 18, borderRadius: 20, borderWidth: 1,
-    borderColor: "rgba(148,163,184,0.18)", backgroundColor: COLORS.surface, gap: 16,
-  },
-  field: { gap: 6 },
-  label: { color: COLORS.text, fontSize: 13, fontWeight: "700", letterSpacing: 0.3 },
-  input: {
-    borderWidth: 1, borderColor: "rgba(148,163,184,0.25)", borderRadius: 14,
-    paddingHorizontal: 14, paddingVertical: 10, color: COLORS.text,
-    backgroundColor: "rgba(5,5,7,0.9)", fontSize: 13,
-  },
-  inputMulti: { height: 90, textAlignVertical: "top" },
-  charCount: { color: COLORS.textMuted, fontSize: 10, alignSelf: "flex-end" },
-  sportsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  sportChip: {
-    paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: "rgba(5,5,7,0.7)",
-  },
-  sportChipActive: { borderColor: COLORS.primary, backgroundColor: "rgba(212,175,55,0.15)" },
-  sportChipText: { color: COLORS.textMuted, fontSize: 12, fontWeight: "600" },
-  sportChipTextActive: { color: COLORS.primary, fontWeight: "800" },
-  row: { flexDirection: "row", gap: 12 },
-  unitRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  unitChip: {
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
-    borderWidth: 1, borderColor: COLORS.border, backgroundColor: "rgba(5,5,7,0.7)",
-  },
-  unitChipActive: { borderColor: COLORS.primary, backgroundColor: "rgba(212,175,55,0.15)" },
-  unitText: { color: COLORS.textMuted, fontSize: 12 },
-  unitTextActive: { color: COLORS.primary, fontWeight: "700" },
-  toggleSection: {
-    borderRadius: 16, borderWidth: 1, borderColor: "rgba(148,163,184,0.18)",
-    backgroundColor: "rgba(5,5,7,0.7)", padding: 14, gap: 12,
-  },
-  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  toggleInfo: { flexDirection: "row", alignItems: "flex-start", gap: 10, flex: 1 },
-  toggleLabel: { color: COLORS.text, fontWeight: "700", fontSize: 13 },
-  toggleDesc: { color: COLORS.textMuted, fontSize: 11, marginTop: 2 },
-  separator: { height: 1, backgroundColor: "rgba(148,163,184,0.1)" },
-  qualityCard: {
-    padding: 14, borderRadius: 16, borderWidth: 1,
-    borderColor: "rgba(52,211,153,0.25)", backgroundColor: "rgba(52,211,153,0.06)",
-    gap: 8,
-  },
-  qualityTitle: { color: "#34D399", fontWeight: "800", fontSize: 12, letterSpacing: 0.5, marginBottom: 2 },
-  checkRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  checkLabel: { fontSize: 12, fontWeight: "600" },
-  submitBtn: { marginTop: 4 },
+  scroll: { gap: 16, paddingBottom: 48 },
+  input: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.text, paddingHorizontal: 14, fontSize: 16 },
+  counter: { color: COLORS.textMuted, fontSize: 12, alignSelf: "flex-end", marginTop: -6 },
+  hint: { color: COLORS.textMuted, fontSize: 12, lineHeight: 17 },
+  rulesToggle: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 12 },
+  rulesTitle: { color: COLORS.text, fontSize: 16, fontWeight: "800" },
+  rulesSub: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18 },
+  rulesChevron: { color: COLORS.primary, fontSize: 13, fontWeight: "800" },
+  recipient: { flexDirection: "row", alignItems: "center", gap: 12, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "rgba(212,175,55,0.45)", backgroundColor: "rgba(212,175,55,0.08)" },
+  recipientName: { color: COLORS.text, fontSize: 15, fontWeight: "800" },
+  result: { minHeight: 48, justifyContent: "center", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  footnote: { color: COLORS.textMuted, fontSize: 12, textAlign: "center", lineHeight: 17 },
 });

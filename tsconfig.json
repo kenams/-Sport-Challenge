@@ -3,5 +3,11 @@
   "compilerOptions": {
     "strict": true
   },
-  "exclude": ["supabase/functions"]
+  "exclude": [
+    "supabase/functions",
+    "src/screens/_archived",
+    "src/_archived",
+    "dist",
+    "android"
+  ]
 }

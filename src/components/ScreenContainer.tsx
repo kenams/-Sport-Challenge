@@ -15,7 +15,6 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { COLORS } from "../theme";
 import BrandHeader from "./BrandHeader";
-import BottomDock from "./BottomDock";
 
 type Props = {
   children: React.ReactNode;
@@ -45,9 +44,8 @@ export default function ScreenContainer({
      ? 14
     : 16;
   // Native screens already sit inside the React Navigation tab bar.
-  const shouldShowFooter = showFooter && isWeb;
-  const footerPadding = shouldShowFooter ? 96 : 12;
-  const shouldShowCredit = !showHeader;
+  const shouldShowFooter = false;
+  const footerPadding = 12;
 
   return (
     <SafeAreaView
@@ -96,15 +94,6 @@ export default function ScreenContainer({
         {showHeader && <BrandHeader />}
         {children}
       </View>
-      {shouldShowFooter && <BottomDock />}
-      {shouldShowCredit && (
-        <View
-          pointerEvents="none"
-          style={[styles.credit, { bottom: (insets.bottom || 0) + 10 }]}
-        >
-          <Text style={styles.creditText}>Developed by KAH Digital Studio</Text>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
