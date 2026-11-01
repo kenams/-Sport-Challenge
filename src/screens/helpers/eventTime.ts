@@ -47,13 +47,24 @@ export function partsToIso(parts: LocalParts, tz: string, now: number = Date.now
   const guess = Date.UTC(year, month - 1, day, hour, minute);
   let ts = guess - tzOffsetMs(guess, zone);
   ts = guess - tzOffsetMs(ts, zone);
+  // Vérification aller-retour : au passage à l'heure d'été, certaines heures n'existent pas.
+  if (ts + tzOffsetMs(ts, zone) !== guess) {
+    return { ok: false, error: "Cette heure n'existe pas dans ce fuseau à cause du changement d'heure. Choisis une autre heure." };
+  }
+  // Une heure répétée en automne désigne deux instants : demander une heure non ambiguë.
+  const offsets = new Set([-86400000, 0, 86400000].map((delta) => tzOffsetMs(ts + delta, zone)));
+  const matches = [...offsets].filter((offset) => {
+    const candidate = guess - offset;
+    return candidate + tzOffsetMs(candidate, zone) === guess;
+  });
+  if (matches.length > 1) return { ok: false, error: "Cette heure se produit deux fois lors du changement d'heure. Choisis une autre heure pour éviter toute confusion." };
   if (ts <= now) return { ok: false, error: "La date et l'heure doivent être dans le futur." };
   return { ok: true, iso: new Date(ts).toISOString() };
 }
 
 /** Valeur d'un champ datetime-local : "AAAA-MM-JJTHH:mm". */
 export function parseDatetimeLocal(value: string): LocalParts | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value.trim());
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
   if (!m) return null;
   return { year: +m[1], month: +m[2], day: +m[3], hour: +m[4], minute: +m[5] };
 }

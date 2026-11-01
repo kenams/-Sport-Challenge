@@ -10,6 +10,7 @@ export function useEventEngagement(eventId: string | null, uid: string | null, o
 
   useEffect(() => {
     let alive = true;
+    setFeedback(null);
     setSupportedId(null);
     setReminderOn(false);
     if (!eventId || !uid) return;
@@ -19,7 +20,9 @@ export function useEventEngagement(eventId: string | null, uid: string | null, o
         setSupportedId(support[eventId] ?? null);
         setReminderOn(reminders.has(eventId));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (alive) setFeedback({ text: "Impossible de lire tes soutiens et rappels. Actualise la page avant de les modifier.", error: true });
+      });
     return () => {
       alive = false;
     };
@@ -49,7 +52,7 @@ export function useEventEngagement(eventId: string | null, uid: string | null, o
     if (result.error) return setFeedback({ text: result.error, error: true });
     const on = result.data === true;
     setReminderOn(on);
-    setFeedback({ text: on ? "Rappel activé : tu seras prévenu avant le duel." : "Rappel désactivé.", error: false });
+    setFeedback({ text: on ? "Rappel enregistré. L'envoi des notifications n'est pas encore disponible dans cette version." : "Rappel désactivé.", error: false });
   }, [eventId]);
 
   return { supportedId, reminderOn, busy, feedback, support, toggle };

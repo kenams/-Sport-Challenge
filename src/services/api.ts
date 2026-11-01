@@ -272,12 +272,14 @@ export const listUpcomingEvents = () =>
   );
 
 export const myEventSupport = async (): Promise<Record<string, string>> => {
-  const { data } = await supabase.from("event_supporters").select("event_id,supported_user_id");
+  const { data, error } = await supabase.from("event_supporters").select("event_id,supported_user_id");
+  if (error) throw new Error(describeError(error));
   return Object.fromEntries((data ?? []).map((row) => [row.event_id as string, row.supported_user_id as string]));
 };
 
 export const myReminders = async (): Promise<Set<string>> => {
-  const { data } = await supabase.from("event_reminders").select("event_id");
+  const { data, error } = await supabase.from("event_reminders").select("event_id");
+  if (error) throw new Error(describeError(error));
   return new Set((data ?? []).map((row) => row.event_id as string));
 };
 
@@ -287,12 +289,14 @@ export async function getMyEntitlement(): Promise<Entitlement> {
   const uid = await currentUserId();
   const fallback: Entitlement = { plan: "free", status: "none", current_period_end: null, source: null };
   if (!uid) return fallback;
-  const { data } = await supabase.from("entitlements").select("plan,status,current_period_end,source").eq("user_id", uid).maybeSingle();
+  const { data, error } = await supabase.from("entitlements").select("plan,status,current_period_end,source").eq("user_id", uid).maybeSingle();
+  if (error) throw new Error(describeError(error));
   return (data as Entitlement | null) ?? fallback;
 }
 
 export async function isPro(): Promise<boolean> {
-  const { data } = await supabase.rpc("is_pro");
+  const { data, error } = await supabase.rpc("is_pro");
+  if (error) throw new Error(describeError(error));
   return data === true;
 }
 

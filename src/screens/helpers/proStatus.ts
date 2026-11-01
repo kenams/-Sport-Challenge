@@ -16,12 +16,16 @@ export function describeEntitlement(ent: Entitlement, active: boolean): ProState
   const end = dateFr(ent.current_period_end);
   switch (ent.status) {
     case "active":
-      return { label: "Pro actif", tone: "success", detail: end ? `Valable jusqu'au ${end}.` : "Abonnement actif." };
+      return active
+        ? { label: "Pro actif", tone: "success", detail: end ? `Valable jusqu'au ${end}.` : "Abonnement actif." }
+        : { label: "Pro inactif", tone: "warning", detail: "Le serveur ne confirme pas d'accès Pro actif. Actualise ton abonnement avant d'utiliser ses avantages." };
     case "cancelled_pending":
       return {
         label: active ? "Pro actif, non renouvelé" : "Pro résilié",
         tone: "warning",
-        detail: end ? `Accès jusqu'au ${end}, sans renouvellement.` : "Abonnement résilié.",
+        detail: active
+          ? end ? `Accès jusqu'au ${end}, sans renouvellement.` : "Ton accès Pro reste actif, sans renouvellement."
+          : "Abonnement résilié. Les avantages Pro ne sont plus disponibles.",
       };
     case "billing_issue":
       return {
@@ -46,7 +50,7 @@ export type SubscribeCta = { label: string; disabled: boolean };
 
 /** Tant qu'aucun module d'achat n'est branché, aucun achat n'est possible, même si le drapeau est activé. */
 export function subscribeCta(iapFlag: string | undefined): SubscribeCta {
-  return iapFlag === "true" ? { label: "S'abonner", disabled: false } : { label: "Abonnements bientôt disponibles", disabled: true };
+  return { label: "Abonnements bientôt disponibles", disabled: true };
 }
 
 export const CARD_THEMES = [

@@ -316,9 +316,9 @@ function GroupsBlock({ pro, signedIn }: { pro: boolean; signedIn: boolean }) {
       ) : null}
 
       <Text style={styles.label}>Mes groupes</Text>
-      {loadError ? <Text style={styles.err}>{loadError}</Text> : null}
+      {loadError ? <View style={{ gap: 8 }}><Text style={styles.err}>{loadError}</Text><EventAction label="Réessayer le chargement des groupes" variant="ghost" onPress={reload} /></View> : null}
+      {groups?.length === 0 && !loadError ? <Text style={styles.sub}>Tu n’as pas encore rejoint de groupe. Demande un code à un ami pour commencer.</Text> : null}
       {groups === null && !loadError ? <ActivityIndicator color={COLORS.primary} /> : null}
-      {groups && groups.length === 0 && !loadError ? <Text style={styles.sub}>Tu n'as pas encore de groupe.</Text> : null}
       {groups?.map((g) => (
         <Pressable
           key={g.id}

@@ -4,7 +4,7 @@ import EventAction from "./EventAction";
 import { COLORS } from "../../theme";
 import { hasShareableLink, shareEvent, type ShareableEvent } from "../../services/share";
 
-/** Partage avec confirmation visible. L'avertissement de lien manquant n'apparaît qu'en développement. */
+/** Partage avec confirmation visible et indication claire si aucun lien public n'est disponible. */
 export default function EventShareButton({ event, label = "Partager" }: { event: ShareableEvent; label?: string }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
@@ -25,8 +25,8 @@ export default function EventShareButton({ event, label = "Partager" }: { event:
           {note.text}
         </Text>
       ) : null}
-      {__DEV__ && !hasShareableLink() ? (
-        <Text style={styles.dev}>Dev : EXPO_PUBLIC_WEB_BASE_URL est absente, le partage se fait sans lien.</Text>
+      {!hasShareableLink() ? (
+        <Text style={styles.dev}>Le partage contient le texte du duel. Le lien public sera disponible lors de la mise en ligne.</Text>
       ) : null}
     </View>
   );

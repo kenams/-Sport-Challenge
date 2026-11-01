@@ -92,7 +92,7 @@ export default function EventSupportPanel(p: Props) {
             selected={p.reminderOn}
             accessibilityHint="Active ou désactive un rappel avant le duel"
           />
-          {needAuth ? (
+          {needAuth && !p.authed ? (
             <EventAuthPrompt
               reason={needAuth === "support" ? "Connecte-toi pour choisir le joueur que tu soutiens." : "Connecte-toi pour recevoir un rappel avant le duel."}
               onLogin={p.onLogin}

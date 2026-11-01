@@ -35,6 +35,9 @@ export default function AppButton({
 
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !!(disabled || loading), busy: !!loading }}
       onPress={onPress}
       activeOpacity={0.85}
       disabled={disabled || loading}
@@ -43,7 +46,7 @@ export default function AppButton({
         baseStyle,
         sizeStyle,
         disabled ? { opacity: 0.6 } : null,
-        Platform.OS === "web" ? { cursor: "pointer" } : null,
+        Platform.OS === "web" ? { cursor: disabled || loading ? "auto" : "pointer" } : null,
         style,
       ]}
     >
@@ -66,6 +69,7 @@ export default function AppButton({
 
 const styles = StyleSheet.create({
   button: {
+    minHeight: 44,
     borderRadius: 14,
     paddingVertical: 14,
     alignItems: "center",

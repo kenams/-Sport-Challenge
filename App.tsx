@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { registerForPushNotifications } from "./src/notifications";
 import { View, ActivityIndicator, Image, Text, TouchableOpacity } from "react-native";
-import { NavigationContainer, LinkingOptions } from "@react-navigation/native";
+import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { FontAwesome5 } from "@expo/vector-icons";
@@ -26,24 +26,12 @@ import EventDetailScreen from "./src/screens/EventDetailScreen";
 import PublicEventScreen from "./src/screens/PublicEventScreen";
 import ProScreen from "./src/screens/ProScreen";
 
+import { linking } from "./src/navigation/linking";
 import type { MainTabParamList, RootStackParamList } from "./src/navigation/types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const logoSource = require("./assets/immortal-k-logo.png");
-
-// Liens profonds : un duel annoncé s'ouvre sans compte (/e/<slug>), un défi se partage (/d/<id>).
-const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: [(process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").trim() || "immortal://"],
-  config: {
-    screens: {
-      PublicEvent: "e/:slug",
-      ChallengeDetail: "d/:challengeId",
-      Login: "connexion",
-      Register: "inscription",
-    },
-  },
-};
 
 function CreateButton({ onPress }: { onPress: () => void }) {
   return (

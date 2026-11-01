@@ -1,3 +1,5 @@
+import type { NavigatorScreenParams } from "@react-navigation/native";
+
 // Paramètres de navigation partagés par tous les écrans.
 export type RootStackParamList = {
   // Authentification
@@ -5,7 +7,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   // Application
-  MainTabs: undefined;
+  MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   CreateChallenge: { formatKey?: "pushups_60s" | "pullups_max"; recipientId?: string; recipientPseudo?: string } | undefined;
   ChallengeDetail: { challengeId: string };
   RespondChallenge: { challengeId: string };

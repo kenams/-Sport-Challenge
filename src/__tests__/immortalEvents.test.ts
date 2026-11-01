@@ -98,7 +98,7 @@ describe("pro", () => {
     expect(subscribeCta(undefined).disabled).toBe(true);
     expect(subscribeCta("false").disabled).toBe(true);
     expect(subscribeCta(undefined).label).toBe("Abonnements bientôt disponibles");
-    expect(subscribeCta("true").disabled).toBe(false);
+    expect(subscribeCta("true").disabled).toBe(true);
   });
   it("décrit l'état du droit", () => {
     const e = (status: any) => ({ plan: "pro" as const, status, current_period_end: "2027-01-15T00:00:00Z", source: null });
@@ -113,5 +113,41 @@ describe("pro", () => {
     expect(barRatio(0, 10)).toBe(0);
     expect(barRatio(5, 0)).toBe(0);
     expect(barRatio(20, 10)).toBe(1);
+  });
+});
+
+
+describe("dates de duel aux changements d'heure", () => {
+  it("refuse une heure inexistante à Paris", () => {
+    const result = partsToIso({ year: 2027, month: 3, day: 28, hour: 2, minute: 30 }, "Europe/Paris", NOW);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("n'existe pas");
+  });
+  it("refuse une heure ambiguë à Paris", () => {
+    const result = partsToIso({ year: 2027, month: 10, day: 31, hour: 2, minute: 30 }, "Europe/Paris", NOW);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toContain("deux fois");
+  });
+  it("accepte une heure valide après le saut d'heure", () => {
+    expect(partsToIso({ year: 2027, month: 3, day: 28, hour: 3, minute: 30 }, "Europe/Paris", NOW)).toEqual({ ok: true, iso: "2027-03-28T01:30:00.000Z" });
+  });
+  it("gère un décalage de trente minutes sans décaler le rendez-vous", () => {
+    expect(partsToIso({ year: 2027, month: 1, day: 2, hour: 20, minute: 0 }, "Asia/Kolkata", NOW)).toEqual({ ok: true, iso: "2027-01-02T14:30:00.000Z" });
+  });
+  it("refuse une chaîne avec un suffixe non valide", () => {
+    expect(parseDatetimeLocal("2027-01-02T20:00garbage")).toBeNull();
+  });
+});
+
+describe("cohérence de l'accès Pro", () => {
+  it("ne présente pas un abonnement actif sans droit confirmé par le serveur", () => {
+    const state = describeEntitlement({ plan: "pro", status: "active", current_period_end: "2026-10-01T00:00:00Z", source: "revenuecat" }, false);
+    expect(state.label).toBe("Pro inactif");
+    expect(state.tone).not.toBe("success");
+  });
+  it("ne promet pas un accès restant après expiration d'un abonnement résilié", () => {
+    const state = describeEntitlement({ plan: "pro", status: "cancelled_pending", current_period_end: "2026-10-01T00:00:00Z", source: "revenuecat" }, false);
+    expect(state.label).toBe("Pro résilié");
+    expect(state.detail).not.toContain("Accès jusqu'au");
   });
 });
