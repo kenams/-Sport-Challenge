@@ -4,7 +4,7 @@ import { useIsFocused, useNavigation } from '@react-navigation/native';
 import ScreenContainer from '../components/ScreenContainer';
 import { COLORS } from '../theme';
 import { ArenaAudio, soundCues } from '../simulation/audio';
-import { addMyComment, startPresenceCheck, arriveInTime, advanceClock, formatCountdown, advanceSimulation, cheer, createSimulation, dethrone, ranks, support, type SimFormat, type SimPlayer } from '../simulation/arena';
+import { addMyComment, requestRematch, beginRematch, startPresenceCheck, arriveInTime, advanceClock, formatCountdown, advanceSimulation, cheer, createSimulation, dethrone, ranks, support, type SimFormat, type SimPlayer } from '../simulation/arena';
 
 const YOU:SimPlayer={id:'you',name:'Toi',city:'Au bord du terrain',country:'',color:'#D4AF37',skin:'#DDA680',hair:'#302631',scores:{pushups:0,pullups:0}};
 
@@ -159,7 +159,7 @@ export default function ArenaSimulationScreen({onExit}:{onExit?:()=>void}) {
   const board=ranks(state.players.filter(p=>!country||p.country==='France'),format);
   const a=state.players[state.duel.a],b=state.players[state.duel.b];
   const scoreA=state.duel.scoreA,scoreB=state.duel.scoreB;
-  const leader=state.presence?.status==='waiting'?'En attente de présence':state.presence?.status==='forfeit'?`${state.presence.playerId===a.id?b.name:a.name} gagne par forfait`:scoreA===scoreB?'Égalité parfaite':`${scoreA>scoreB?a.name:b.name} prend l’avantage`;
+  const leader=state.rematch?.phase==='rest'?'Récupération avant la revanche':state.rematch?.phase==='ready'?'Repos terminé · prêt pour la revanche':state.presence?.status==='waiting'?'En attente de présence':state.presence?.status==='forfeit'?`${state.presence.playerId===a.id?b.name:a.name} gagne par forfait`:scoreA===scoreB?'Égalité parfaite':`${scoreA>scoreB?a.name:b.name} prend l’avantage`;
   const send=()=>{if(!draft.trim())return;setState(s=>addMyComment(s,draft));setDraft('');};
   return <ScreenContainer>
     <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
@@ -181,7 +181,7 @@ export default function ArenaSimulationScreen({onExit}:{onExit?:()=>void}) {
           <View style={[styles.duel,!wide&&panel!=='duel'?{display:'none'}:null]}>
             <View pointerEvents="none" style={{...StyleSheet.absoluteFillObject,zIndex:10,overflow:'hidden',borderRadius:22}}>{hearts.map(h=><FlyingHeart key={h.id} id={h.id} color={h.color} onDone={removeHeart}/>)}</View>
             {combo>=5?<Text accessibilityLiveRegion="polite" style={{color:'#F8CF68',fontSize:16,fontWeight:'900',textAlign:'center'}}>COMBO ×{combo} · Fais du bruit !</Text>:null}
-            <View style={styles.sectionHead}><View style={styles.liveBadge}><View style={[styles.dot,{backgroundColor:paused?'#B8B5C2':'#FF7E94'}]} /><Text style={styles.liveText}>{state.presence?.status==='waiting'?'Délai de présence · simulation':state.presence?.status==='forfeit'?'Forfait · simulation':state.duel.finished?'Duel terminé · simulation':paused?'Duel en pause · simulation':'Duel en cours · simulation'}</Text></View><Text style={styles.round}>Manche {state.duel.round}</Text></View>
+            <View style={styles.sectionHead}><View style={styles.liveBadge}><View style={[styles.dot,{backgroundColor:paused?'#B8B5C2':'#FF7E94'}]} /><Text style={styles.liveText}>{state.rematch&&state.rematch.phase!=='queued'?'Repos avant revanche · simulation':state.presence?.status==='waiting'?'Délai de présence · simulation':state.presence?.status==='forfeit'?'Forfait · simulation':state.duel.finished?'Duel terminé · simulation':paused?'Duel en pause · simulation':'Duel en cours · simulation'}</Text></View><Text style={styles.round}>Manche {state.duel.round}</Text></View>
             <Text style={styles.duelTitle}>Le duel des voisins</Text><Text style={styles.muted}>Pompes · 60 secondes · animation de scores, sans vidéo</Text>
             {state.presence ? <View style={{padding:12,gap:8,borderRadius:12,backgroundColor:state.presence.status==='waiting'?'#D4AF3718':'#EF444418',borderWidth:1,borderColor:state.presence.status==='waiting'?'#D4AF3750':'#EF444450'}}>
               <Text style={styles.messageName}>{state.presence.status==='waiting'?`${state.players.find(p=>p.id===state.presence!.playerId)?.name} manque à l’appel`:'Forfait pour absence'}</Text>
@@ -191,8 +191,12 @@ export default function ArenaSimulationScreen({onExit}:{onExit?:()=>void}) {
             <View style={styles.fighters}>
               {[a,b].map((p,i)=><View key={p.id} style={[styles.fighter,{backgroundColor:p.color+'12',borderColor:p.color+'45'}]}><Pressable accessibilityRole="button" accessibilityLabel={`Taper pour encourager ${p.name}`} onPress={()=>tap(p)} style={({pressed})=>({opacity:pressed?0.8:1,padding:4})}><EnergyAvatar player={p} count={i===0?scoreA:scoreB} size={width<420?66:84}/></Pressable><Text style={styles.playerName}>{p.name}</Text><Text style={[styles.city,{color:p.color}]}>{p.city}</Text><Text style={styles.small}>{Math.round(state.crowd*(i===0?0.46:0.54))} soutiens simulés</Text><Text accessibilityLabel={`${p.name} : ${i===0?scoreA:scoreB} pompes simulées`} style={[styles.duelScore,{color:p.color}]}>{i===0?scoreA:scoreB}</Text><Text style={styles.metricLabel}>pompes</Text><Text accessibilityLabel={`${p.name} : ${state.taps[p.id]} taps de soutien simulés`} style={{color:p.color,fontWeight:'800',fontSize:12}}>♥ {state.taps[p.id]} taps</Text><Button subtle label={state.mySide===p.id?`Tu soutiens ${p.name}`:`Soutenir ${p.name}`} selected={state.mySide===p.id} disabled={state.duel.finished} onPress={()=>setState(s=>support(s,p.id))}/></View>)}
             </View>
-            <View style={styles.timerRow}><PrecisionClock running={!paused&&focused&&active&&visible} speed={speed} remaining={state.presence?.remaining??state.duel.remaining} round={state.duel.round} resetKey={clockReset} onSeconds={onSeconds}/><Text style={styles.leadChange}>{state.presence?leader:state.duel.finished?(scoreA===scoreB?'Égalité !':`${scoreA>scoreB?a.name:b.name} remporte la manche 🏆`):leader}</Text></View>
-            <Button subtle label="Simuler un retard" disabled={!!state.presence} onPress={()=>{setState(startPresenceCheck);setClockReset(n=>n+1);}}/>
+            <View style={styles.timerRow}><PrecisionClock running={!paused&&focused&&active&&visible} speed={speed} remaining={state.rematch&&state.rematch.phase!=='queued'?state.rematch.remaining:state.presence?.remaining??state.duel.remaining} round={state.duel.round} resetKey={clockReset} onSeconds={onSeconds}/><Text style={styles.leadChange}>{state.presence||(state.rematch&&state.rematch.phase!=='queued')?leader:state.duel.finished?(scoreA===scoreB?'Égalité !':`${scoreA>scoreB?a.name:b.name} remporte la manche 🏆`):leader}</Text></View>
+            <View style={{gap:8,padding:12,borderRadius:12,backgroundColor:'#A78BFA10'}}>
+              <Text style={styles.muted}>{state.rematch?.phase==='queued'?'Revanche réservée : la manche continue, puis 30 secondes de repos.':state.rematch?.phase==='rest'?'Repos de démonstration : prends plus de temps si nécessaire. Aucune reprise forcée.':state.rematch?.phase==='ready'?'Le repos est terminé. Lance la revanche quand tu es prêt.':'Même adversaire, même format. La revanche prévoit 30 secondes de repos, prolongeables en attendant.'}</Text>
+              {state.rematch?.phase==='ready'?<Button label="Lancer la revanche" onPress={()=>{setState(beginRematch);setClockReset(n=>n+1);}}/>:<Button subtle label={state.rematch?'Revanche réservée':'Revanche · repos 30 s'} disabled={!!state.rematch||!!state.presence} onPress={()=>{setState(requestRematch);if(state.duel.finished)setClockReset(n=>n+1);}}/>}
+            </View>
+            <Button subtle label="Simuler un retard" disabled={!!state.presence||!!state.rematch} onPress={()=>{setState(startPresenceCheck);setClockReset(n=>n+1);}}/>
             <View style={styles.track}><View style={[styles.progress,{width:`${(60-state.duel.remaining)/60*100}%`}]} /></View>
             <Button subtle label="♥ Tap tap · Encourager" onPress={()=>tap(state.players.find(p=>p.id===state.mySide)??a)}/>
             <Text style={styles.small}>Tape sur l’avatar pour envoyer des cœurs. Les taps soutiennent le joueur, sans modifier ses répétitions.</Text>

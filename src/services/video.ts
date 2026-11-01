@@ -10,6 +10,8 @@ export const ACCEPTED_MIME = ["video/mp4", "video/quicktime", "video/webm"] as c
 
 export type VideoCandidate = {
   uri: string;
+  source?: "guided" | "imported";
+  sessionCode?: string;
   mimeType?: string | null;
   fileSize?: number | null;
   durationSeconds?: number | null;

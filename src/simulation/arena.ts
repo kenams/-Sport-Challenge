@@ -2,7 +2,7 @@ export type SimFormat = 'pushups' | 'pullups';
 export type SimPlayer = { id: string; name: string; city: string; country: string; color: string; skin: string; hair: string; scores: Record<SimFormat, number> };
 export type SimMessage = { id: number; playerId: string; text: string; kind: 'comment' | 'record' | 'duel' | 'support'; tick: number };
 export type SimPresence = {playerId:string;remaining:number;status:'waiting'|'forfeit';resolvedAt:number|null};
-export type SimState = { taps:Record<string,number>; presence:SimPresence|null; reliability:Record<string,number>; suspendedUntil:Record<string,number>; tick: number; players: SimPlayer[]; messages: SimMessage[]; previousRanks: Record<string, number>; duel: { round: number; a: number; b: number; scoreA: number; scoreB: number; remaining: number; finished: boolean }; crowd: number; cheers: number; mySide: string | null; nextId: number };
+export type SimState = { rematch:{phase:'queued'|'rest'|'ready';remaining:number}|null; finishedAt:number|null; taps:Record<string,number>; presence:SimPresence|null; reliability:Record<string,number>; suspendedUntil:Record<string,number>; tick: number; players: SimPlayer[]; messages: SimMessage[]; previousRanks: Record<string, number>; duel: { round: number; a: number; b: number; scoreA: number; scoreB: number; remaining: number; finished: boolean }; crowd: number; cheers: number; mySide: string | null; nextId: number };
 const ROSTER = [
   ['lea', 'Léa', 'Toulouse', 'France', '#A78BFA', '#E9B490', '#442D42', 48, 12],
   ['moussa', 'Moussa', 'Toulouse', 'France', '#49D6B0', '#89553D', '#201B27', 55, 15],
@@ -19,7 +19,7 @@ export function ranks(players: SimPlayer[], format: SimFormat = 'pushups') {
 function rankMap(players:SimPlayer[]) {return Object.fromEntries((['pushups','pullups'] as const).flatMap(f=>[...ranks(players,f).map((p,i)=>[`${f}:${p.id}`,i+1]),...ranks(players.filter(p=>p.country==='France'),f).map((p,i)=>[`France:${f}:${p.id}`,i+1])]));}
 export function createSimulation(): SimState {
   const players = ROSTER.map(([id,name,city,country,color,skin,hair,pushups,pullups])=>({id,name,city,country,color,skin,hair,scores:{pushups,pullups}}));
-  return { taps:Object.fromEntries(players.map(p=>[p.id,0])),presence:null,reliability:Object.fromEntries(players.map(p=>[p.id,100])),suspendedUntil:{},tick: 0, players, previousRanks: rankMap(players),
+  return { rematch:null,finishedAt:null,taps:Object.fromEntries(players.map(p=>[p.id,0])),presence:null,reliability:Object.fromEntries(players.map(p=>[p.id,100])),suspendedUntil:{},tick: 0, players, previousRanks: rankMap(players),
     messages: [
       {id:3,playerId:'moussa',text:'Toulouse, vous êtes là ? On compte sur vous 🔥',kind:'comment',tick:0},
       {id:2,playerId:'lea',text:'Demain c’est toi contre moi, prépare tes bras 😂',kind:'comment',tick:0},
@@ -35,6 +35,12 @@ export function advanceSimulation(previous: SimState): SimState {
   let state: SimState={...previous,tick,crowd:Math.min(999,previous.crowd+(tick%4===0?-2:3)),cheers:previous.cheers+3+tick%7,
     previousRanks:rankMap(previous.players)};
   const d=previous.duel;
+  if(previous.rematch?.phase==='rest'){
+    const remaining=Math.max(0,previous.rematch.remaining-1);
+    return {...state,rematch:{phase:remaining?'rest':'ready',remaining}};
+  }
+  if(previous.rematch?.phase==='ready')return state;
+  if(previous.rematch?.phase==='queued'&&d.finished)return {...state,rematch:{phase:'rest',remaining:30}};
   if(!d.finished&&!previous.presence)state={...state,taps:{...state.taps,
     [state.players[d.a].id]:state.taps[state.players[d.a].id]+1+tick%5,
     [state.players[d.b].id]:state.taps[state.players[d.b].id]+2+(tick*3)%7}};
@@ -42,7 +48,7 @@ export function advanceSimulation(previous: SimState): SimState {
     const presence={...previous.presence,remaining:Math.max(0,previous.presence.remaining-1)};
     state={...state,presence};
     if(!presence.remaining){
-      state={...state,presence:{...presence,status:'forfeit',resolvedAt:tick},duel:{...d,finished:true},
+      state={...state,presence:{...presence,status:'forfeit',resolvedAt:tick},duel:{...d,finished:true},finishedAt:tick,
         reliability:{...state.reliability,[presence.playerId]:Math.max(0,state.reliability[presence.playerId]-10)},
         suspendedUntil:{...state.suspendedUntil,[presence.playerId]:tick+60}};
       const player=state.players.find(p=>p.id===presence.playerId)!;
@@ -51,11 +57,12 @@ export function advanceSimulation(previous: SimState): SimState {
     return state;
   }
   if(previous.presence?.status==='forfeit' && tick-(previous.presence.resolvedAt??tick)<8)return state;
+  if(d.finished&&tick-(previous.finishedAt??tick)<8)return state;
   if (d.finished) {
     const eligible=state.players.map((p,i)=>i).filter(i=>(state.suspendedUntil[state.players[i].id]??0)<=tick);
     const a=eligible.find(i=>i> d.a)??eligible[0];
     const b=eligible.find(i=>i!==a&&i>d.b)??eligible.find(i=>i!==a)!;
-    state={...state,presence:null,mySide:null,duel:{round:d.round+1,a,b,scoreA:0,scoreB:0,remaining:60,finished:false}};
+    state={...state,presence:null,finishedAt:null,mySide:null,duel:{round:d.round+1,a,b,scoreA:0,scoreB:0,remaining:60,finished:false}};
     state=message(state,state.players[a].id,'Nouveau duel ! Venez soutenir votre champion.','duel');
   } else {
     const phase=(60-d.remaining)%10;
@@ -63,7 +70,7 @@ export function advanceSimulation(previous: SimState): SimState {
     const scoreA=d.scoreA+((d.round%2?gainsA:gainsB)[phase]??0);
     const scoreB=d.scoreB+((d.round%2?gainsB:gainsA)[phase]??0);
     const remaining=Math.max(0,d.remaining-1);
-    state={...state,duel:{...d,scoreA,scoreB,remaining,finished:remaining===0}};
+    state={...state,duel:{...d,scoreA,scoreB,remaining,finished:remaining===0},finishedAt:remaining===0?tick:null};
     if (!remaining) state=message(state,state.players[scoreA>=scoreB?d.a:d.b].id,scoreA===scoreB?'Égalité ! On remet ça ? 🤝':`Duel gagné ${Math.max(scoreA,scoreB)}–${Math.min(scoreA,scoreB)}. La revanche est ouverte ! 🏆`,'duel');
   }
   if (tick%3===0) {
@@ -124,4 +131,14 @@ export function startPresenceCheck(state:SimState):SimState {
 export function arriveInTime(state:SimState):SimState {
   if(state.presence?.status!=='waiting')return state;
   return message({...state,presence:null},state.presence.playerId,'Présent ! Le duel peut commencer. 💪','duel');
+}
+
+
+export function requestRematch(state:SimState):SimState {
+  if(state.rematch||state.presence)return state;
+  return message({...state,rematch:{phase:state.duel.finished?'rest':'queued',remaining:30}},'you','Revanche demandée ! 30 secondes de repos après cette manche.','duel');
+}
+export function beginRematch(state:SimState):SimState {
+  if(state.rematch?.phase!=='ready')return state;
+  return message({...state,rematch:null,finishedAt:null,mySide:null,duel:{...state.duel,round:state.duel.round+1,scoreA:0,scoreB:0,remaining:60,finished:false}},'you','Les deux adversaires repartent pour la revanche !','duel');
 }

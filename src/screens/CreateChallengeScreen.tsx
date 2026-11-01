@@ -223,7 +223,7 @@ export default function CreateChallengeScreen() {
           </View>
 
           <View style={formStyles.card}>
-            <VideoPicker value={video} onChange={setVideo} maxSeconds={format?.max_video_seconds ?? 120} disabled={submitting} error={videoError} />
+            <VideoPicker formatKey={format?.key} value={video} onChange={setVideo} maxSeconds={format?.max_video_seconds ?? 120} disabled={submitting} error={videoError} />
           </View>
 
           <View style={formStyles.card}>

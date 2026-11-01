@@ -183,7 +183,7 @@ export default function RespondChallengeScreen() {
           </View>
 
           <View style={formStyles.card}>
-            <VideoPicker value={video} onChange={setVideo} maxSeconds={format.max_video_seconds} disabled={submitting} error={videoError} />
+            <VideoPicker formatKey={format?.key} value={video} onChange={setVideo} maxSeconds={format.max_video_seconds} disabled={submitting} error={videoError} />
           </View>
 
           {submitError ? <InlineMessage tone="error">{submitError}</InlineMessage> : null}

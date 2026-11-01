@@ -1,4 +1,4 @@
-import { addMyComment, startPresenceCheck, arriveInTime, advanceClock, formatCountdown, advanceSimulation, cheer, createSimulation, dethrone, ranks, support } from '../simulation/arena';
+import { addMyComment, requestRematch, beginRematch, startPresenceCheck, arriveInTime, advanceClock, formatCountdown, advanceSimulation, cheer, createSimulation, dethrone, ranks, support } from '../simulation/arena';
 
 describe('simulation locale IMMORTAL',()=>{
   it('change réellement le champion et les positions lors d’un dépassement',()=>{
@@ -18,7 +18,7 @@ describe('simulation locale IMMORTAL',()=>{
     for(let i=0;i<60;i++)state=advanceSimulation(state);
     expect(state.duel.finished).toBe(true);
     expect(state.duel.remaining).toBe(0);
-    const next=advanceSimulation(state);
+    let next=state;for(let i=0;i<8;i++)next=advanceSimulation(next);
     expect(next.duel.round).toBe(2);
     expect(next.duel.finished).toBe(false);
     expect(next.duel.remaining).toBe(60);
@@ -154,4 +154,22 @@ it('compte chaque tap sans modifier les répétitions ni les records',()=>{
   expect(state.duel).toEqual(before.duel);
   expect(state.players).toEqual(before.players);
   expect(state.taps.yanis).toBe(0);
+});
+
+
+it('réserve une revanche puis impose le repos sans démarrage forcé',()=>{
+ let state=requestRematch(createSimulation());
+ const opponents=[state.duel.a,state.duel.b];
+ for(let i=0;i<61;i++)state=advanceSimulation(state);
+ expect(state.rematch?.phase).toBe('rest');
+ expect(beginRematch(state)).toBe(state);
+ for(let i=0;i<30;i++)state=advanceSimulation(state);
+ expect(state.rematch?.phase).toBe('ready');
+ for(let i=0;i<5;i++)state=advanceSimulation(state);
+ expect(state.duel.finished).toBe(true);
+ state=beginRematch(state);
+ expect([state.duel.a,state.duel.b]).toEqual(opponents);
+ expect(state.duel.remaining).toBe(60);
+ expect(state.duel.scoreA).toBe(0);
+ expect(state.rematch).toBeNull();
 });
