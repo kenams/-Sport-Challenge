@@ -880,8 +880,9 @@ begin
   end if;
   select * into g from public.groups where invite_code = p_code;
   if not found then
+    -- On ne lève pas d'erreur ici : elle annulerait l'enregistrement de l'essai raté et la limite ne fonctionnerait jamais.
     insert into public.group_join_failures (user_id) values (uid);
-    raise exception 'invalid_code' using errcode = 'P0001';
+    return null;
   end if;
   if (select count(*) from public.group_members where group_id = g.id) >= 100 then raise exception 'group_full' using errcode = 'P0001'; end if;
   insert into public.group_members (group_id, user_id) values (g.id, uid) on conflict do nothing;

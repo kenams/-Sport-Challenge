@@ -58,6 +58,20 @@ const moderate = (mod, id, action, score = null, reason = null) =>
   mod.client.rpc("moderate_attempt", { p_id: id, p_action: action, p_score: score, p_reason: reason });
 const pointsOf = async (user) => (await user.client.rpc("my_stats")).data?.[0]?.points ?? -1;
 
+// Base locale de test : on repart d'un état propre (le script refuse déjà toute base non locale).
+async function resetTestData() {
+  for (const table of ["moderation_log", "attempt_reports", "event_reminders", "event_supporters", "duel_events", "group_members", "group_join_failures", "groups", "payment_events", "entitlements", "attempts"]) {
+    await admin.from(table).delete().not("created_at", "is", null).then(() => {}, () => {});
+  }
+  await admin.from("payment_events").delete().neq("event_id", "");
+  await admin.from("entitlements").delete().neq("plan", "x");
+  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  for (const u of data?.users ?? []) {
+    if (u.email?.endsWith("@immortal-test.example")) await admin.auth.admin.deleteUser(u.id);
+  }
+}
+await resetTestData();
+
 const alice = await makeUser("alice");
 const bob = await makeUser("bob");
 const carol = await makeUser("carol");
@@ -309,7 +323,8 @@ console.log("\n=== 9. Droits Pro (serveur de paiement uniquement) ===");
   ok("un abonné Pro crée un groupe privé", !g.error && !!g.data, errText(g.error));
   const code = (await admin.from("groups").select("invite_code").eq("id", g.data).single()).data?.invite_code;
   ok("un membre gratuit rejoint avec le code d'invitation", !(await bob.client.rpc("join_group", { p_code: code })).error);
-  ok("un code invalide est refusé", !!(await carol.client.rpc("join_group", { p_code: "zzzzzzzz" })).error);
+  const badJoin = await carol.client.rpc("join_group", { p_code: "zzzzzzzz" });
+  ok("un code invalide ne donne accès à aucun groupe", !badJoin.error && badJoin.data === null);
   const codeLen = code?.length ?? 0;
   ok("le code d'invitation a au moins 24 caractères (96 bits)", codeLen >= 24, `longueur=${codeLen}`);
   let limited = false;
