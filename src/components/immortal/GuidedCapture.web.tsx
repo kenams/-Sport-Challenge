@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { FormatKey } from '../../domain/types';
-import type { VideoCandidate } from '../../services/video';
-import { MAX_VIDEO_BYTES, readWebVideoDuration } from '../../services/video';
+import type { VideoCandidate } from '../../domain/video';
+import { MAX_VIDEO_BYTES, readWebVideoDuration } from '../../domain/video';
 import { ActionButton, InlineMessage } from './AttemptFormParts';
 import { COLORS } from '../../theme';
 

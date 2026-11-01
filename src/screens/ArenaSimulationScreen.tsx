@@ -106,7 +106,7 @@ function PrecisionClock({running,speed,remaining,round,resetKey,onSeconds}:{runn
   return <Text accessibilityLabel={`Chronomètre simulé : ${formatCountdown(displayMs)}`} style={[styles.timer,{fontVariant:['tabular-nums'],fontSize:25,color:displayMs<=10000?'#FF657D':displayMs<=20000?'#F0CA5A':'#FFF7EC'}]}>{formatCountdown(displayMs)}</Text>;
 }
 
-export default function ArenaSimulationScreen({onExit}:{onExit?:()=>void}) {
+export default function ArenaSimulationScreen({onExit,exitLabel}:{onExit?:()=>void;exitLabel?:string}) {
   const navigation=useNavigation<any>();
   const focused=useIsFocused();
   const {width}=useWindowDimensions();
@@ -155,7 +155,7 @@ export default function ArenaSimulationScreen({onExit}:{onExit?:()=>void}) {
   useEffect(()=>{if(Platform.OS!=='web')return;const change=()=>setVisible(document.visibilityState!=='hidden');document.addEventListener('visibilitychange',change);return()=>document.removeEventListener('visibilitychange',change);},[]);
   const [clockReset,setClockReset]=useState(0);
   const onSeconds=useCallback((count:number)=>setState(s=>{let next=s;for(let i=0;i<count;i++)next=advanceSimulation(next);return next;}),[]);
-  if(!__DEV__)return <ScreenContainer><Text style={styles.muted}>La simulation est disponible uniquement en développement.</Text></ScreenContainer>;
+  if(!__DEV__&&process.env.EXPO_PUBLIC_PREVIEW!=='true')return <ScreenContainer><Text style={styles.muted}>La simulation est disponible uniquement en développement.</Text></ScreenContainer>;
   const board=ranks(state.players.filter(p=>!country||p.country==='France'),format);
   const a=state.players[state.duel.a],b=state.players[state.duel.b];
   const scoreA=state.duel.scoreA,scoreB=state.duel.scoreB;
@@ -164,8 +164,8 @@ export default function ArenaSimulationScreen({onExit}:{onExit?:()=>void}) {
   return <ScreenContainer>
     <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.page}>
       <View style={styles.demoBar}>
-        <View style={{flex:1,minWidth:180,gap:3}}><Text style={styles.demoTitle}>Laboratoire · simulation locale</Text><Text style={styles.demoText}>Joueurs, scores et échanges fictifs. Aucun record réel modifié.</Text></View>
-        <Button subtle label={width<600?"Vrais parcours":"Retour à l’application"} onPress={()=>onExit?onExit():navigation.navigate('MainTabs',{screen:'Defis'})} />
+        <View style={{flex:1,minWidth:180,gap:3}}><Text style={styles.demoTitle}>{process.env.EXPO_PUBLIC_PREVIEW==='true'?'Démo interactive · sans compte':'Laboratoire · simulation locale'}</Text><Text style={styles.demoText}>Joueurs, scores et échanges fictifs. Aucun record réel modifié.</Text></View>
+        <Button subtle label={exitLabel??(width<600?"Vrais parcours":"Retour à l’application")} onPress={()=>onExit?onExit():navigation.navigate('MainTabs',{screen:'Defis'})} />
       </View>
       <View style={styles.intro}>
         <View style={{flex:1,minWidth:230,gap:8}}><Text style={styles.eyebrow}>L’arène est à vous</Text><Text style={[styles.title,{fontSize:width<500?28:46}]}>Une ville. Une fierté.{`\n`}Une place à défendre.</Text><Text style={styles.muted}>Des défis, des remontées et toute une bande derrière toi.</Text></View>

@@ -1,8 +1,7 @@
 import { registerRootComponent } from 'expo';
 
-import App from './App';
-
-// registerRootComponent calls AppRegistry.registerComponent('main', () => App);
-// It also ensures that whether you load the app in Expo Go or in a native build,
-// the environment is set up appropriately
+// La démo hébergée est autonome : aucun chargement de session ou de base locale.
+const App = process.env.EXPO_PUBLIC_PREVIEW === 'true'
+  ? require('./src/preview/PreviewApp').default
+  : require('./App').default;
 registerRootComponent(App);

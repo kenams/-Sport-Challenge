@@ -8,6 +8,8 @@ import { COLORS, TYPO } from "../theme";
 import LogoMark from "./LogoMark";
 
 const SUBTITLES: Record<string, string> = {
+  Demo: "Démo interactive",
+  CameraLab: "Atelier caméra",
   Defis: "Défis",
   Classement: "Records",
   Evenements: "Événements",

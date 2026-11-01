@@ -6,7 +6,7 @@ import type { FormatKey } from "../../domain/types";
 import VideoPlayer from "../VideoPlayer";
 import { ActionButton, FieldLabel, InlineMessage } from "./AttemptFormParts";
 import { COLORS } from "../../theme";
-import { checkVideoCandidate, readWebVideoDuration, type VideoCandidate } from "../../services/video";
+import { checkVideoCandidate, readWebVideoDuration, type VideoCandidate } from "../../domain/video";
 
 type Props = {
   formatKey?: FormatKey;
