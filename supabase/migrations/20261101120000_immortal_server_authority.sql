@@ -432,6 +432,13 @@ begin
 end;
 $$;
 
+-- Vue de lecture : tentatives avec le pseudo et l'avatar du joueur (les règles d'accès de attempts et profiles s'appliquent).
+create or replace view public.attempt_feed with (security_invoker = true) as
+select a.*, p.pseudo, p.avatar_url
+from public.attempts a
+left join public.profiles p on p.user_id = a.user_id;
+grant select on public.attempt_feed to authenticated;
+
 ------------------------------------------------------------------------------------------------
 -- 6. Points, niveaux, duels, classements (calculés, donc jamais falsifiables ni comptés deux fois)
 ------------------------------------------------------------------------------------------------
@@ -813,7 +820,7 @@ create table if not exists public.groups (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
   name text not null check (char_length(name) between 2 and 40),
-  invite_code text not null unique default substr(replace(gen_random_uuid()::text, '-', ''), 1, 8),
+  invite_code text not null unique default substr(replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''), 1, 24),
   created_at timestamptz not null default now()
 );
 create table if not exists public.group_members (
@@ -850,6 +857,14 @@ begin
 end;
 $$;
 
+create table if not exists public.group_join_failures (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.group_join_failures enable row level security;
+revoke all on public.group_join_failures from anon, authenticated;
+
 create or replace function public.join_group(p_code text)
 returns uuid
 language plpgsql security definer set search_path = public
@@ -859,8 +874,15 @@ declare
   g public.groups%rowtype;
 begin
   if uid is null then raise exception 'not_authenticated' using errcode = '28000'; end if;
+  -- Essais ratés limités : 10 par heure et par joueur.
+  if (select count(*) from public.group_join_failures where user_id = uid and created_at > now() - interval '1 hour') >= 10 then
+    raise exception 'rate_limited' using errcode = 'P0001';
+  end if;
   select * into g from public.groups where invite_code = p_code;
-  if not found then raise exception 'invalid_code' using errcode = 'P0001'; end if;
+  if not found then
+    insert into public.group_join_failures (user_id) values (uid);
+    raise exception 'invalid_code' using errcode = 'P0001';
+  end if;
   if (select count(*) from public.group_members where group_id = g.id) >= 100 then raise exception 'group_full' using errcode = 'P0001'; end if;
   insert into public.group_members (group_id, user_id) values (g.id, uid) on conflict do nothing;
   return g.id;

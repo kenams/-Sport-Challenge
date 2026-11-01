@@ -310,6 +310,14 @@ console.log("\n=== 9. Droits Pro (serveur de paiement uniquement) ===");
   const code = (await admin.from("groups").select("invite_code").eq("id", g.data).single()).data?.invite_code;
   ok("un membre gratuit rejoint avec le code d'invitation", !(await bob.client.rpc("join_group", { p_code: code })).error);
   ok("un code invalide est refusé", !!(await carol.client.rpc("join_group", { p_code: "zzzzzzzz" })).error);
+  const codeLen = code?.length ?? 0;
+  ok("le code d'invitation a au moins 24 caractères (96 bits)", codeLen >= 24, `longueur=${codeLen}`);
+  let limited = false;
+  for (let i = 0; i < 12; i += 1) {
+    const r = await carol.client.rpc("join_group", { p_code: `faux${i}` });
+    if (r.error && /rate_limited/.test(r.error.message)) limited = true;
+  }
+  ok("les essais de codes ratés sont limités (anti-force brute)", limited);
   const gl = (await bob.client.rpc("group_leaderboard", { p_group: g.data, p_format: "pushups_60s" })).data ?? [];
   ok("le classement du groupe est visible des membres (gratuits inclus)", gl.length === 2 && gl[0].pseudo === "Alice");
   const glOut = (await carol.client.rpc("group_leaderboard", { p_group: g.data, p_format: "pushups_60s" })).data ?? [];

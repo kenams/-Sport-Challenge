@@ -3,7 +3,7 @@
 -- Les anciennes tables (challenges, challenge_responses, players_stats, wallets, ...) ne sont pas touchées par la migration, donc conservées.
 -- Les politiques d'accès d'origine (permissives) ne sont PAS rétablies automatiquement : elles étaient dangereuses (voir la migration).
 
-drop view if exists public.player_stats_v2, public.player_points, public.duel_results, public.attempt_points;
+drop view if exists public.attempt_feed, public.player_stats_v2, public.player_points, public.duel_results, public.attempt_points;
 
 drop function if exists public.my_progress(text), public.set_card_theme(text), public.group_leaderboard(uuid, text),
   public.join_group(text), public.create_group(text),
@@ -15,7 +15,7 @@ drop function if exists public.my_progress(text), public.set_card_theme(text), p
   public.submit_attempt(text, integer, text, numeric, text, uuid, uuid), public.update_my_profile(text, text, text, text, text),
   public.ensure_player();
 
-drop table if exists public.group_members, public.groups, public.payment_events, public.entitlements,
+drop table if exists public.group_join_failures, public.group_members, public.groups, public.payment_events, public.entitlements,
   public.event_reminders, public.event_supporters, public.duel_events, public.weekly_challenges,
   public.moderation_log, public.attempt_reports, public.attempts, public.challenge_formats, public.disciplines;
 
