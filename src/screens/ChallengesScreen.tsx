@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import ArenaSimulationScreen from "./ArenaSimulationScreen";
 import ScreenContainer from "../components/ScreenContainer";
 import AttemptCard from "../components/immortal/AttemptCard";
 import EmptyState from "../components/immortal/EmptyState";
@@ -16,6 +17,13 @@ type Filter = "all" | FormatKey;
 type Weekly = { week_start: string; format_key: FormatKey; note_fr: string | null };
 
 export default function ChallengesScreen() {
+  const [simulating, setSimulating] = useState(__DEV__);
+  return simulating
+    ? <ArenaSimulationScreen onExit={() => setSimulating(false)} />
+    : <RealChallengesScreen onSimulate={() => setSimulating(true)} />;
+}
+
+function RealChallengesScreen({ onSimulate }: { onSimulate: () => void }) {
   const navigation = useNavigation<any>();
   const [filter, setFilter] = useState<Filter>("all");
   const [items, setItems] = useState<Attempt[]>([]);
@@ -98,6 +106,7 @@ export default function ChallengesScreen() {
         </View>
       ) : null}
 
+      {__DEV__ ? <ActionButton label="Ouvrir la simulation vivante" variant="ghost" onPress={onSimulate} /> : null}
       <ActionButton label="Lancer un défi" onPress={() => create()} />
 
       <View style={styles.filters} accessibilityRole="tablist">
