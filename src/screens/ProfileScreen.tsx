@@ -13,12 +13,21 @@ import ActionButton from "../components/immortal/ActionButton";
 import ProfileSetupForm from "../components/immortal/ProfileSetupForm";
 import DeleteAccountFlow from "../components/immortal/DeleteAccountFlow";
 import { COLORS } from "../theme";
-import { ensurePlayer, getMyBest, getMyProfile, getMyStats, isModerator, listMyAttempts } from "../services/api";
+import { ensurePlayer, getMyBest, getMyPrivateProfile, getMyProfile, getMyStats, isModerator, listMyAttempts } from "../services/api";
 import { FALLBACK_FORMATS, formatLabel } from "../domain/formats";
-import type { Attempt, MyProfile, MyStats } from "../domain/types";
+import type { Attempt, MyPrivateProfile, MyProfile, MyStats } from "../domain/types";
 import { computeBadges, nextObjective } from "./helpers/profileStats";
+import { calculateAge } from "./helpers/validation";
 
 type Records = Record<string, number | null>;
+
+function privateProfileLine(value: MyPrivateProfile | null): string {
+  if (!value) return "Données sportives non renseignées";
+  const age = value.birth_date ? calculateAge(value.birth_date) : null;
+  const gender = value.gender ? ({ male: "Homme", female: "Femme", other: "Autre", prefer_not_to_say: "Non précisé" } as const)[value.gender] : null;
+  const parts = [age !== null ? age + " ans" : null, gender, value.height_cm ? value.height_cm + " cm" : null, value.weight_kg ? Number(value.weight_kg) + " kg" : null].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Données sportives non renseignées";
+}
 
 function territoryLine(profile: MyProfile): string {
   const parts = [profile.city, profile.region, profile.country].map((p) => (p ?? "").trim()).filter(Boolean);
@@ -39,6 +48,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [stats, setStats] = useState<MyStats | null>(null);
+  const [privateProfile, setPrivateProfile] = useState<MyPrivateProfile | null>(null);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [attemptsError, setAttemptsError] = useState<string | null>(null);
   const [records, setRecords] = useState<Records>({});
@@ -52,9 +62,10 @@ export default function ProfileScreen({ navigation }: any) {
     else setLoading(true);
     setError(null);
     await ensurePlayer();
-    const [profileRes, statsRes, attemptsRes, mod, best1, best2] = await Promise.all([
+    const [profileRes, statsRes, privateRes, attemptsRes, mod, best1, best2] = await Promise.all([
       getMyProfile(),
       getMyStats(),
+      getMyPrivateProfile(),
       listMyAttempts(30),
       isModerator().catch(() => false),
       getMyBest("pushups_60s"),
@@ -63,6 +74,7 @@ export default function ProfileScreen({ navigation }: any) {
     if (profileRes.error) setError(profileRes.error);
     setProfile(profileRes.data);
     setStats(statsRes.data);
+    setPrivateProfile(privateRes.data);
     setAttempts(attemptsRes.data ?? []);
     setAttemptsError(attemptsRes.error);
     setRecords({ pushups_60s: best1, pullups_max: best2 });
@@ -110,6 +122,8 @@ export default function ProfileScreen({ navigation }: any) {
             </Text>
             <ProfileSetupForm
               intro="Choisis ton pseudo public et indique ton territoire pour apparaître dans les records."
+              initialPrivateProfile={privateProfile}
+              initialAvatarUrl={profile?.avatar_url}
               initialTerritory={{ country: profile?.country ?? "", region: profile?.region ?? "", city: profile?.city ?? "" }}
               submitLabel="Enregistrer mon profil"
               onSaved={() => load()}
@@ -126,6 +140,8 @@ export default function ProfileScreen({ navigation }: any) {
                   </Text>
                   <ProfileSetupForm
                     initialPseudo={profile.pseudo}
+                    initialPrivateProfile={privateProfile}
+                    initialAvatarUrl={profile.avatar_url}
                     initialTerritory={{ country: profile.country ?? "", region: profile.region ?? "", city: profile.city ?? "" }}
                     submitLabel="Enregistrer"
                     onSaved={() => {
@@ -145,6 +161,7 @@ export default function ProfileScreen({ navigation }: any) {
                       </Text>
                       <Text style={styles.muted}>{territoryLine(profile)}</Text>
                       <Text style={styles.tiny}>Territoire déclaré, non vérifié</Text>
+                      <Text style={styles.tiny}>Privé · {privateProfileLine(privateProfile)}</Text>
                     </View>
                   </View>
                   <ActionButton label="Modifier mon profil" variant="ghost" onPress={() => setEditing(true)} />

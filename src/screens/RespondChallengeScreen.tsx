@@ -7,10 +7,11 @@ import VideoPicker from "../components/immortal/VideoPicker";
 import ErrorState from "../components/immortal/ErrorState";
 import EmptyState from "../components/immortal/EmptyState";
 import { ActionButton, InlineMessage, ScoreField, SubmissionSuccess, formStyles } from "../components/immortal/AttemptFormParts";
-import { getAttempt, listResponses, listFormats } from "../services/api";
+import { getAttempt, getMyStats, getPlayerLevel, listResponses, listFormats } from "../services/api";
 import type { VideoCandidate } from "../services/video";
 import { FALLBACK_FORMATS, formatByKey } from "../domain/formats";
 import type { Attempt, ChallengeFormat } from "../domain/types";
+import { exceedsDirectLevelGap, MAX_DIRECT_LEVEL_GAP } from "../domain/challengeRules";
 import { COLORS } from "../theme";
 import { canRespond, challengeTitle, isNetworkMessage, parseDeclaredScore } from "./helpers/attempts";
 import { sendAttempt, useUserId } from "./helpers/sendAttempt";
@@ -23,6 +24,7 @@ export default function RespondChallengeScreen() {
 
   const [challenge, setChallenge] = useState<Attempt | null>(null);
   const [responses, setResponses] = useState<Attempt[]>([]);
+  const [levelBlocked, setLevelBlocked] = useState(false);
   const [formats, setFormats] = useState<ChallengeFormat[]>(FALLBACK_FORMATS);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -49,6 +51,8 @@ export default function RespondChallengeScreen() {
     else if (!attempt.data) setLoadError("Ce défi n'existe plus ou n'est plus disponible.");
     else {
       setChallenge(attempt.data);
+      const [mine, ownerLevel] = await Promise.all([getMyStats(), getPlayerLevel(attempt.data.user_id)]);
+      setLevelBlocked(exceedsDirectLevelGap(mine.data?.level, ownerLevel));
       setResponses(list.data ?? []);
       if (formatList.length > 0) setFormats(formatList);
     }
@@ -63,7 +67,7 @@ export default function RespondChallengeScreen() {
   const parsed = format ? parseDeclaredScore(score, format.max_score) : null;
 
   const submit = async () => {
-    if (busy.current || !challenge || !format) return;
+    if (busy.current || !challenge || !format || levelBlocked) return;
     setShowErrors(true);
     setSubmitError(null);
     setOffline(false);
@@ -91,6 +95,16 @@ export default function RespondChallengeScreen() {
     if (navigation.canGoBack()) navigation.goBack();
     else navigation.navigate("MainTabs");
   };
+
+  if (!loading && levelBlocked) {
+    return (
+      <ScreenContainer>
+        <View style={styles.center}>
+          <EmptyState title="Défi hors de ta tranche de niveau" message={"L’écart dépasse la limite de " + MAX_DIRECT_LEVEL_GAP + " niveaux. Les défis restent accessibles quand ta progression se rapproche."} actionLabel="Retour au défi" onAction={back} />
+        </View>
+      </ScreenContainer>
+    );
+  }
 
   if (loading) {
     return (

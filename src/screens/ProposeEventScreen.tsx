@@ -5,15 +5,16 @@ import EventAction from "../components/immortal/EventAction";
 import EventAuthPrompt from "../components/immortal/EventAuthPrompt";
 import EventShareButton from "../components/immortal/EventShareButton";
 import { COLORS, TYPO } from "../theme";
-import { getMyProfile, listFormats, proposeEvent, searchPlayers } from "../services/api";
+import { getMyProfile, getMyStats, getPlayerLevel, listFormats, proposeEvent, searchPlayers } from "../services/api";
 import { FALLBACK_FORMATS, formatTimeFr } from "../domain/formats";
 import type { ChallengeFormat, FormatKey } from "../domain/types";
+import { exceedsDirectLevelGap, MAX_DIRECT_LEVEL_GAP } from "../domain/challengeRules";
 import { supabase } from "../supabase";
 import type { ShareableEvent } from "../services/share";
 import { DEFAULT_TIMEZONE, isValidTimezone, parseDatetimeLocal, partsToIso, toInt, type LocalParts } from "./helpers/eventTime";
 import { useSessionUser } from "./helpers/useSessionUser";
 
-type Opponent = { id: string; pseudo: string | null; city: string | null };
+type Opponent = { id: string; pseudo: string | null; city: string | null; level: number | null };
 
 export default function ProposeEventScreen({ navigation, route }: any) {
   const preset = route?.params as { opponentId?: string; opponentPseudo?: string } | undefined;
@@ -21,7 +22,8 @@ export default function ProposeEventScreen({ navigation, route }: any) {
 
   const [formats, setFormats] = useState<ChallengeFormat[]>(FALLBACK_FORMATS);
   const [formatKey, setFormatKey] = useState<FormatKey>("pushups_60s");
-  const [opponent, setOpponent] = useState<Opponent | null>(preset?.opponentId ? { id: preset.opponentId, pseudo: preset.opponentPseudo ?? null, city: null } : null);
+  const [opponent, setOpponent] = useState<Opponent | null>(preset?.opponentId ? { id: preset.opponentId, pseudo: preset.opponentPseudo ?? null, city: null, level: null } : null);
+  const [myLevel, setMyLevel] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Opponent[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -38,7 +40,12 @@ export default function ProposeEventScreen({ navigation, route }: any) {
 
   useEffect(() => {
     listFormats().then(setFormats).catch(() => undefined);
+    getMyStats().then((result) => { if (result.data) setMyLevel(result.data.level); });
   }, []);
+
+  useEffect(() => {
+    if (opponent?.id && opponent.level == null) getPlayerLevel(opponent.id).then((level) => setOpponent((current) => current?.id === opponent.id ? { ...current, level } : current));
+  }, [opponent?.id]);
 
   const parts: LocalParts | null = useMemo(() => {
     if (Platform.OS === "web") return parseDatetimeLocal(webValue);
@@ -65,7 +72,7 @@ export default function ProposeEventScreen({ navigation, route }: any) {
       setResults(null);
       return;
     }
-    setResults(result.data.filter((p) => p.user_id !== uid).map((p) => ({ id: p.user_id, pseudo: p.pseudo, city: p.city })));
+    setResults(result.data.filter((p) => p.user_id !== uid).map((p) => ({ id: p.user_id, pseudo: p.pseudo, city: p.city, level: p.level })));
   };
 
   const submit = async () => {
@@ -73,6 +80,7 @@ export default function ProposeEventScreen({ navigation, route }: any) {
     if (!uid) return setNeedAuth(true);
     if (!opponent) return setFormError("Choisis ton adversaire.");
     if (opponent.id === uid) return setFormError("Tu ne peux pas t'affronter toi-même.");
+    if (exceedsDirectLevelGap(myLevel, opponent.level)) return setFormError("Écart de niveau trop important : limite de " + MAX_DIRECT_LEVEL_GAP + " niveaux.");
     if (!parts || !parsed) return setFormError("Renseigne la date et l'heure du duel.");
     if (!parsed.ok) return setFormError(parsed.error);
     setSubmitting(true);
@@ -186,6 +194,7 @@ export default function ProposeEventScreen({ navigation, route }: any) {
               {results?.map((p) => (
                 <Pressable
                   key={p.id}
+                  disabled={exceedsDirectLevelGap(myLevel, p.level)}
                   onPress={() => setOpponent(p)}
                   accessibilityRole="button"
                   accessibilityLabel={`Choisir ${p.pseudo ?? "ce joueur"}${p.city ? `, ${p.city}` : ""}`}
@@ -193,6 +202,7 @@ export default function ProposeEventScreen({ navigation, route }: any) {
                 >
                   <Text style={styles.name}>{p.pseudo ?? "Joueur"}</Text>
                   <Text style={styles.hint}>{p.city ?? "Ville non renseignée"}</Text>
+                  <Text style={styles.hint}>{p.level != null ? (exceedsDirectLevelGap(myLevel, p.level) ? "Niveau " + p.level + " · écart trop important" : "Niveau " + p.level) : "Niveau indisponible"}</Text>
                 </Pressable>
               ))}
             </>
