@@ -8,6 +8,7 @@ import AccountField from "../../components/immortal/AccountField";
 import ActionButton from "../../components/immortal/ActionButton";
 import { COLORS } from "../../theme";
 import { describeAuthError, validateEmail, validatePseudo } from "../helpers/validation";
+import { WEB_BASE_URL } from "../../navigation/linking";
 
 /**
  * Après connexion : le profil est créé côté serveur (ensurePlayer). Si l'inscription avait demandé une confirmation d'e-mail,
@@ -66,7 +67,7 @@ export default function LoginScreen({ navigation }: any) {
     if (eErr) return;
     setResetting(true);
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase());
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: `${WEB_BASE_URL}/reinitialiser-mot-de-passe` });
       if (resetError) setError(describeAuthError(resetError, "reset"));
       else setInfo("Si un compte existe avec cette adresse, un e-mail de réinitialisation vient d'être envoyé. Pense à vérifier tes courriers indésirables.");
     } catch (caught) {
