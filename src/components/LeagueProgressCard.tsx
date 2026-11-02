@@ -55,7 +55,7 @@ export default function LeagueProgressCard({ onPress }: { onPress: () => void })
         {loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Text style={styles.range}>{league.from}–{league.to}</Text>}
       </View>
 
-      <View style={styles.progressTrack}><View style={[styles.progressFill, { width: (progress * 100) + "%", backgroundColor: league.color }]} /></View>
+      <View style={styles.progressTrack}><View style={[styles.progressFill, { width: ((progress * 100) + "%") as `${number}%`, backgroundColor: league.color }]} /></View>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.leagueStrip}>
         {LEAGUES.map((item) => {
