@@ -10,6 +10,7 @@ Inscription → choix de l'épreuve → lancer un défi (vidéo) → inviter un 
 - Personne ne valide sa propre performance ; seuls les modérateurs décident, et chaque décision est tracée (`moderation_log`).
 - Limite de 10 performances par 24 h, vidéos privées (URL signées), signalements, retrait de vidéo.
 - Classements territoriaux basés sur le territoire **déclaré**, non vérifié.
+- Profil sportif privé (`player_private_profiles`, RLS propriétaire) : date de naissance, sexe, taille et poids ; l’âge est calculé à l’affichage. Les défis nominatifs et duels vérifient côté serveur un écart maximal de 10 niveaux.
 - Droits Pro écrits uniquement côté serveur (`apply_entitlement_event`).
 - Suppression de compte (migration `20261102140000`, Edge Function `delete-account`) : profil, performances et vidéos effacés, performances des autres intactes.
 - « Encourager » (un par joueur, retirable) et commentaires de 280 caractères au plus, sur performances validées seulement (migration `20261102150000`) : limites de débit, signalement, masquage par la modération, aucun effet sur points ni classements.
@@ -29,6 +30,6 @@ npx tsc --noEmit && npx jest
 ## État honnête
 - **Fait et testé** : règles serveur (210 vérifications), fonctions Edge (47 vérifications, avec faux Stripe local), logique des écrans (jest), typage.
 - **Non fait** : abonnement Pro (rien n'est achetable ; le paiement web Stripe est prêt mais non déployé ni testé en mode test Stripe), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
-- La migration n'est pas appliquée à la base de production ; à faire seulement après sauvegarde et accord.
+- La migration `20261102210000_immortal_private_sports_profile_level_gap.sql` est appliquée en production ; les champs date de naissance, sexe, taille et poids restent privés et absents des vues publiques.
 
 Voir `docs/PRO_SETUP.md` (abonnements) et `docs/COSTS.md` (coûts).
