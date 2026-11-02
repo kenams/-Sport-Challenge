@@ -26,6 +26,7 @@ import ProposeEventScreen from "./src/screens/ProposeEventScreen";
 import EventDetailScreen from "./src/screens/EventDetailScreen";
 import PublicEventScreen from "./src/screens/PublicEventScreen";
 import ProScreen from "./src/screens/ProScreen";
+import GroupsScreen from "./src/screens/GroupsScreen";
 
 import { linking } from "./src/navigation/linking";
 import type { MainTabParamList, RootStackParamList } from "./src/navigation/types";
@@ -118,6 +119,15 @@ function MainTabs({ navigation }: any) {
           tabBarLabel: "Duels",
           tabBarAccessibilityLabel: "Duels et événements",
           tabBarIcon: ({ color, size }) => <FontAwesome5 name="calendar-alt" size={size - 2} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Groupes"
+        component={GroupsScreen}
+        options={{
+          tabBarLabel: "Groupes",
+          tabBarAccessibilityLabel: "Groupes d’entraînement",
+          tabBarIcon: ({ color, size }) => <FontAwesome5 name="users" size={size - 2} color={color} />,
         }}
       />
       <Tab.Screen

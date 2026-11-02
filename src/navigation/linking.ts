@@ -10,7 +10,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
     screens: {
       MainTabs: {
         path: "MainTabs",
-        screens: { Defis: "Defis", Creer: "Creer", Classement: "Classement", Evenements: "Evenements", Profil: "Profil" },
+        screens: { Defis: "Defis", Creer: "Creer", Classement: "Classement", Evenements: "Evenements", Groupes: "Groupes", Profil: "Profil" },
       },
       PublicEvent: "e/:slug",
       ChallengeDetail: "d/:challengeId",

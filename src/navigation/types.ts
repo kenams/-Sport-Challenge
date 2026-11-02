@@ -26,5 +26,6 @@ export type MainTabParamList = {
   Creer: undefined;
   Classement: undefined;
   Evenements: undefined;
+  Groupes: undefined;
   Profil: undefined;
 };
