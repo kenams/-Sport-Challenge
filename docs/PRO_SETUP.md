@@ -1,6 +1,6 @@
 # IMMORTAL Pro — mise en place des abonnements
 
-**État : rien n'est vendable.** Le bouton « S'abonner » est désactivé tant que `EXPO_PUBLIC_IAP_ENABLED` (boutiques) ou, sur le web, `EXPO_PUBLIC_STRIPE_WEB_ENABLED` n'est pas `true` et que le parcours n'a pas été testé de bout en bout. Les prix (4,99 €/mois, 39,99 €/an) sont des **hypothèses**.
+**État de production (2 novembre 2026)** : l'abonnement web Stripe a été activé à la demande du fondateur. Les fonctions Checkout, Portail et webhook sont déployées sur Supabase ; les secrets de production sont configurés et `WEB_BASE_URL` pointe vers l'application. Aucune transaction réelle n'a été lancée ici. Les prix affichés (4,99 €/mois, 39,99 €/an) doivent encore être confirmés dans Stripe. Les achats iOS/Android restent désactivés.
 
 Le Pro ne donne aucun avantage sportif : statistiques avancées, personnalisation de la carte, groupes privés. Jamais de points, de validation prioritaire ni de meilleur classement.
 
@@ -13,22 +13,22 @@ Le Pro ne donne aucun avantage sportif : statistiques avancées, personnalisatio
 1. Comptes développeur Apple et Google Play ; produits `immortal_pro_monthly` et `immortal_pro_annual` dans chaque boutique.
 2. Compte RevenueCat : entitlement `pro`, clés SDK publiques iOS/Android, webhook vers `revenuecat-webhook` avec l'en-tête d'autorisation.
 3. Côté app : `react-native-purchases`, `Purchases.logIn(<id utilisateur Supabase>)`, restauration des achats, nouveau build natif.
-4. Web : webhook, Checkout et portail sont écrits et testés en local (voir ci-dessous) ; reste le déploiement, le point d'accès webhook, le portail et un paiement de test en mode test Stripe.
+4. Web : Checkout, Portail et webhook sont déployés. Avant toute vente, vérifier le premier parcours réel dans Stripe, le montant des prix et les mentions/CGV nécessaires.
 5. Déployer : `supabase functions deploy revenuecat-webhook --no-verify-jwt`, secrets via `supabase secrets set` (jamais dans le dépôt).
 6. Achat de test en bac à sable, puis remboursement test, puis seulement activer `EXPO_PUBLIC_IAP_ENABLED`.
 7. Mentions légales, CGV, droit de rétractation et résiliation visibles avant l'achat.
 
-## Webhook Stripe (web) — écrit, testé en local, non déployé
+## Webhook Stripe (web) — déployé en production
 - `supabase/functions/stripe-webhook/index.ts` + logique pure `supabase/functions/_shared/stripe.ts`.
 - Signature `Stripe-Signature` vérifiée à la main (HMAC-SHA256 sur `t.corps_brut`, comparaison à temps constant, tolérance 5 min dans les deux sens, plusieurs secrets acceptés pendant une rotation). Corps lu en texte brut avant tout JSON.parse.
 - Idempotence : l'identifiant d'événement Stripe (`evt_...`) est la clé de `payment_events` ; un doublon renvoie 200 sans effet. Un événement plus ancien que le dernier appliqué est ignoré (`stale`). Limite connue : Stripe horodate à la seconde ; deux événements de la même seconde, le second est ignoré.
 - Correspondance : `customer.subscription.created/updated` (active ou trialing = Pro, `cancel_at_period_end` = résilié mais valable jusqu'à la fin, past_due/unpaid = problème de facturation, canceled/incomplete_expired/paused = gratuit), `customer.subscription.deleted`, `invoice.paid` (renouvellement, fin de période prise sur la ligne de facture), `invoice.payment_failed` (accès maintenu au plus 7 jours), `charge.refunded` (remboursement total seulement). Le joueur est identifié par `metadata.user_id` posé à la création de l'abonnement ; sinon par l'identifiant client Stripe déjà vu dans `payment_events`.
-- Événements du mode test refusés en production ; `STRIPE_ALLOW_TEST_MODE=true` pour les essais.
+- `STRIPE_ALLOW_TEST_MODE=true` est actuellement configuré en production. Il accepte aussi les webhooks Stripe de test ; repasser à `false` après la phase de validation si la production ne doit traiter que les événements live.
 - À vérifier avant ouverture : noms de champs de la version d'API Stripe réellement configurée (la période de l'abonnement est lue sur l'objet ou sur ses lignes), un paiement de test, un remboursement de test.
 - Déploiement : `supabase functions deploy stripe-webhook --no-verify-jwt` ; `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`.
 - Tests : `npx jest src/__tests__/stripeWebhook.test.ts` (signature, correspondance, doublon, désordre, horodatage), `scripts/test-server-rules.mjs` section 12 (apply_entitlement_event et verrous Pro côté base), `scripts/test-edge-functions.mjs` (fonctions réelles dans le runtime Deno).
 
-## Paiement web Stripe : Checkout + portail — écrit, testé en local avec un faux Stripe, NON déployé, NON activé
+## Paiement web Stripe : Checkout + portail — activé en production
 - `supabase/functions/create-checkout-session` : exige un joueur connecté, accepte `{plan: "monthly"|"annual"}` uniquement (liste blanche). Les `price_...` viennent des secrets `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`, jamais du client. Refuse (409) si le joueur est déjà Pro. Crée une session `mode=subscription` avec `client_reference_id`, `metadata.user_id` et `subscription_data.metadata.user_id` = id du joueur (c'est ce que lit le webhook), réutilise le client Stripe déjà connu (`payment_events`), sinon préremplit l'e-mail. Retours : `WEB_BASE_URL` + `/Pro?checkout=success|cancel` (https obligatoire, localhost toléré ; aucune URL fournie par le client).
 - `supabase/functions/customer-portal` : session du portail client (changer de carte, résilier) pour un joueur dont un client Stripe est connu ; sinon 409 `no_customer`.
 - Logique pure : `supabase/functions/_shared/billing.ts` (fetch injecté ; la clé n'est ni journalisée ni renvoyée ; erreurs Stripe réduites à `stripe_error`). Tests : `npx jest src/__tests__/billing.test.ts src/__tests__/billingClient.test.ts` et `scripts/test-edge-functions.mjs` (faux Stripe HTTP local, 47 vérifications ; le runtime local doit avoir `STRIPE_API_BASE=http://host.docker.internal:18999`, une fausse `STRIPE_SECRET_KEY`, `STRIPE_PRICE_MONTHLY=price_fake_monthly`, `STRIPE_PRICE_ANNUAL=price_fake_annual`, `WEB_BASE_URL=http://localhost:8099`).
