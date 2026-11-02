@@ -58,7 +58,13 @@
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
     },
-    "testMatch": ["<rootDir>/src/__tests__/**/*.test.ts"]
+    "testMatch": [
+      "<rootDir>/src/__tests__/**/*.test.ts"
+    ]
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "image-size": "2.0.4",
+    "postcss": "8.5.32"
+  }
 }
