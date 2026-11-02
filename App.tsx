@@ -28,6 +28,7 @@ import ProScreen from "./src/screens/ProScreen";
 
 import { linking } from "./src/navigation/linking";
 import type { MainTabParamList, RootStackParamList } from "./src/navigation/types";
+import { COLORS } from "./src/theme";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
@@ -43,18 +44,18 @@ function CreateButton({ onPress }: { onPress: () => void }) {
         width: 52,
         height: 52,
         borderRadius: 26,
-        backgroundColor: "#D4AF37",
+        backgroundColor: "COLORS.primary",
         alignItems: "center",
         justifyContent: "center",
         marginBottom: 8,
-        shadowColor: "#D4AF37",
+        shadowColor: "COLORS.primary",
         shadowOpacity: 0.5,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
         elevation: 8,
       }}
     >
-      <FontAwesome5 name="plus" size={20} color="#08080C" />
+      <FontAwesome5 name="plus" size={20} color="COLORS.background" />
     </TouchableOpacity>
   );
 }
@@ -69,16 +70,16 @@ function MainTabs({ navigation }: any) {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "#08080C",
-          borderTopColor: "rgba(255,255,255,0.06)",
+          backgroundColor: "COLORS.background",
+          borderTopColor: "COLORS.border",
           borderTopWidth: 1,
           height: tabBarHeight,
           paddingBottom: Math.max(bottomInset, 8),
           paddingTop: 6,
         },
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: "#D4AF37",
-        tabBarInactiveTintColor: "#9A9BA3",
+        tabBarActiveTintColor: "COLORS.primary",
+        tabBarInactiveTintColor: "COLORS.textMuted",
         tabBarLabelStyle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
       }}
     >
@@ -165,10 +166,10 @@ export default function App() {
 
   if (initializing) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#050507", justifyContent: "center", alignItems: "center" }}>
+      <View style={{ flex: 1, backgroundColor: "COLORS.background", justifyContent: "center", alignItems: "center" }}>
         <Image source={logoSource} style={{ width: 120, height: 120, marginBottom: 16 }} resizeMode="contain" />
-        <Text style={{ fontSize: 20, fontWeight: "900", color: "#D4AF37", letterSpacing: 2, marginBottom: 8 }}>IMMORTAL</Text>
-        <ActivityIndicator size="large" color="#D4AF37" />
+        <Text style={{ fontSize: 20, fontWeight: "900", color: "COLORS.primary", letterSpacing: 2, marginBottom: 8 }}>IMMORTAL</Text>
+        <ActivityIndicator size="large" color="COLORS.primary" />
       </View>
     );
   }
