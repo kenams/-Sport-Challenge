@@ -6,6 +6,7 @@ export type RootStackParamList = {
   Onboarding: undefined;
   Login: undefined;
   Register: undefined;
+  ResetPassword: undefined;
   // Application
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;
   CreateChallenge: { formatKey?: "pushups_60s" | "pullups_max"; recipientId?: string; recipientPseudo?: string } | undefined;
