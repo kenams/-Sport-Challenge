@@ -11,6 +11,9 @@ Inscription → choix de l'épreuve → lancer un défi (vidéo) → inviter un 
 - Limite de 10 performances par 24 h, vidéos privées (URL signées), signalements, retrait de vidéo.
 - Classements territoriaux basés sur le territoire **déclaré**, non vérifié.
 - Droits Pro écrits uniquement côté serveur (`apply_entitlement_event`).
+- Suppression de compte (migration `20261102140000`, Edge Function `delete-account`) : profil, performances et vidéos effacés, performances des autres intactes.
+- « Encourager » (un par joueur, retirable) et commentaires de 280 caractères au plus, sur performances validées seulement (migration `20261102150000`) : limites de débit, signalement, masquage par la modération, aucun effet sur points ni classements.
+- Webhook Stripe écrit et testé en local (`supabase/functions/stripe-webhook`), non déployé.
 
 ## Lancer en local
 ```
@@ -18,13 +21,14 @@ supabase start                      # base locale (Docker)
 npm install
 EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:<port> EXPO_PUBLIC_SUPABASE_ANON_KEY=<clé anon locale> npx expo start --web
 node scripts/seed-local-demo.mjs    # admin + 8 joueurs fictifs (base locale uniquement)
-node scripts/test-server-rules.mjs  # 121 vérifications des règles serveur (base locale uniquement)
+node scripts/test-server-rules.mjs  # 210 vérifications des règles serveur (base locale uniquement ; vide les performances)
+node scripts/test-edge-functions.mjs # Edge Functions réelles en local (voir docs/PRO_SETUP.md)
 npx tsc --noEmit && npx jest
 ```
 
 ## État honnête
-- **Fait et testé** : règles serveur (121 vérifications), logique des écrans (jest), typage.
-- **Non fait** : abonnement Pro (rien n'est achetable), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
+- **Fait et testé** : règles serveur (210 vérifications), fonctions Edge (26 vérifications), logique des écrans (jest), typage.
+- **Non fait** : abonnement Pro (rien n'est achetable ; le webhook Stripe est prêt mais non déployé), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
 - La migration n'est pas appliquée à la base de production ; à faire seulement après sauvegarde et accord.
 
 Voir `docs/PRO_SETUP.md` (abonnements) et `docs/COSTS.md` (coûts).

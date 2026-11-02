@@ -71,7 +71,10 @@ export default function AttemptSocial({ attemptId, ownerId, userId }: Props) {
   const toggleComments = () => {
     const next = !open;
     setOpen(next);
-    if (next && commentsState === "idle") loadComments();
+    if (next) {
+      loadComments();
+      loadSocial();
+    }
   };
 
   const toggleCheer = async () => {
@@ -330,7 +333,7 @@ const styles = StyleSheet.create({
   comment: { gap: 4, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
   commentHead: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
   author: { color: COLORS.text, fontSize: 14, fontWeight: "800", flexShrink: 1 },
-  body: { color: COLORS.text, fontSize: 15, lineHeight: 21 },
+  body: { color: COLORS.text, fontSize: 15, lineHeight: 21, ...(Platform.OS === "web" ? ({ overflowWrap: "anywhere" } as object) : null) },
   commentActions: { flexDirection: "row", justifyContent: "flex-end" },
   link: { minHeight: 36, justifyContent: "center", paddingHorizontal: 6 },
   linkText: { color: COLORS.textMuted, fontSize: 13, textDecorationLine: "underline" },

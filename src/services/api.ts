@@ -343,7 +343,10 @@ export async function deleteMyAccount(): Promise<ApiResult<true>> {
   try {
     const { data, error } = await supabase.functions.invoke("delete-account", { body: { confirm: true } });
     if (error || !data?.ok) return { data: null, error: ERROR_MESSAGES.deletion_failed };
-    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    // Le compte n'existe plus : on efface la session localement sans appeler le serveur (il répondrait 403).
+    const auth = supabase.auth as unknown as { _removeSession?: () => Promise<void> };
+    if (typeof auth._removeSession === "function") await auth._removeSession().catch(() => undefined);
+    else await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
     return { data: true, error: null };
   } catch {
     return { data: null, error: ERROR_MESSAGES.deletion_failed };

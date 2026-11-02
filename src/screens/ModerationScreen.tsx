@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
   tabTextOn: { color: COLORS.primary, fontWeight: "800" },
   commentCard: { gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   commentAuthor: { color: COLORS.primary, fontSize: 13, fontWeight: "800" },
-  commentBody: { color: COLORS.text, fontSize: 15, lineHeight: 21 },
+  commentBody: { color: COLORS.text, fontSize: 15, lineHeight: 21, ...(Platform.OS === "web" ? ({ overflowWrap: "anywhere" } as object) : null) },
   help: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19 },
   notice: { color: COLORS.success, fontSize: 14, fontWeight: "700" },
 });
