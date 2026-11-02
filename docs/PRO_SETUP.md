@@ -67,3 +67,10 @@ docker run -d --name edge-test --network supabase_network_<projet> --env-file ed
 SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... EDGE_URL=http://127.0.0.1:18181 node scripts/test-edge-functions.mjs
 ```
 (`main/index.ts` crée un worker utilisateur par fonction ; avec un antivirus qui intercepte le TLS, l'import esm.sh échoue : empaqueter supabase-js localement.)
+
+## Branchement Stripe — état au 02/11/2026 (mode TEST, aucun paiement réel)
+Fait dans le tableau de bord Stripe (compte `acct_1TDQW0GSZgm5QCNL`, mode test) :
+- Produit de test « IMMORTAL Pro » `prod_VYXpdaoZjQCVtg` : mensuel 4,99 € `price_1UXQjeGSZgm5QCNLqEwEkBhP`, annuel 39,99 € `price_1UXQjeGSZgm5QCNLNwEuFmiK` (à mettre dans `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`). Le produit live du 01/11 (`prod_VYADBlN3XWKJ9x`) reste inerte, sans lien de paiement.
+- Webhook de test `immortal-pro-test` (`we_1UXQicGSZgm5QCNLlwOfgobK`), instantané, 6 événements (subscription created/updated/deleted, invoice.paid, invoice.payment_failed, charge.refunded), vers `https://sjnlilbsqecznpxbqukw.supabase.co/functions/v1/stripe-webhook`. **Cette adresse ne répond pas** tant que le projet de production est en pause et la fonction non déployée.
+- Portail client de test enregistré (annulation à la fin de la période, factures, moyens de paiement).
+Reste à faire : clé secrète restreinte de test et secret de signature du webhook (jamais dans le chat) → `supabase secrets set` ; restaurer le projet, déployer les 3 fonctions ; paiement de test (carte 4242 4242 4242 4242) ; remboursement test ; puis recréer les mêmes éléments en mode live.
