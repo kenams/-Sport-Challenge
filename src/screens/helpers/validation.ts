@@ -44,6 +44,69 @@ export function validateTerritory(input: TerritoryInput): string | null {
   return null;
 }
 
+export type PrivateSportInput = {
+  birthDate: string;
+  gender: string;
+  heightCm: string;
+  weightKg: string;
+};
+
+export function formatBirthDateInput(value: string | null | undefined): string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+  const [year, month, day] = value.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+/** Accepte JJ/MM/AAAA (et ISO depuis les données déjà enregistrées), puis renvoie une date ISO. */
+export function parseBirthDateInput(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  let year: number;
+  let month: number;
+  let day: number;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  const fr = /^(\d{1,2})[/.](\d{1,2})[/.](\d{4})$/.exec(trimmed);
+  if (iso) [, year, month, day] = iso.map(Number) as [number, number, number, number];
+  else if (fr) [, day, month, year] = fr.map(Number) as [number, number, number, number];
+  else return null;
+  const check = new Date(Date.UTC(year!, month! - 1, day!));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month! - 1 || check.getUTCDate() !== day) return null;
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function calculateAge(birthDate: string | null | undefined, today = new Date()): number | null {
+  if (!birthDate) return null;
+  const parsed = parseBirthDateInput(birthDate);
+  if (!parsed) return null;
+  const [year, month, day] = parsed.split("-").map(Number);
+  let age = today.getFullYear() - year!;
+  const beforeBirthday = today.getMonth() + 1 < month! || (today.getMonth() + 1 === month! && today.getDate() < day!);
+  if (beforeBirthday) age -= 1;
+  return age;
+}
+
+export function validatePrivateSportProfile(input: PrivateSportInput): string | null {
+  const birthDate = input.birthDate.trim();
+  const parsedBirthDate = parseBirthDateInput(birthDate);
+  if (birthDate && !parsedBirthDate) return "La date de naissance doit être au format JJ/MM/AAAA.";
+  if (parsedBirthDate) {
+    const age = calculateAge(parsedBirthDate);
+    if (age === null || age < 0 || age > 120) return "Vérifie la date de naissance.";
+  }
+  if (input.gender && !["male", "female", "other", "prefer_not_to_say"].includes(input.gender)) return "Choisis une option valide pour le sexe.";
+  const heightText = input.heightCm.trim();
+  if (heightText) {
+    const height = Number(heightText);
+    if (!Number.isInteger(height) || height < 100 || height > 250) return "La taille doit être comprise entre 100 et 250 cm.";
+  }
+  const weightText = input.weightKg.trim().replace(",", ".");
+  if (weightText) {
+    const weight = Number(weightText);
+    if (!Number.isFinite(weight) || weight < 25 || weight > 350) return "Le poids doit être compris entre 25 et 350 kg.";
+  }
+  return null;
+}
+
 export function isTerritoryEmpty(input: Partial<TerritoryInput>): boolean {
   return !cleanText(input.country ?? "") && !cleanText(input.region ?? "") && !cleanText(input.city ?? "");
 }

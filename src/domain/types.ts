@@ -79,6 +79,14 @@ export interface MyStats {
   validated_count: number;
 }
 
+/** Données de santé et de démographie privées : jamais incluses dans les vues publiques. */
+export interface MyPrivateProfile {
+  birth_date: string | null;
+  gender: "male" | "female" | "other" | "prefer_not_to_say" | null;
+  height_cm: number | null;
+  weight_kg: number | null;
+}
+
 export type EventStatus = "proposed" | "accepted" | "scheduled" | "live" | "finished" | "cancelled";
 
 export interface DuelEvent {

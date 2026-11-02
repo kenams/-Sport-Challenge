@@ -6,15 +6,16 @@ import RulesCard from "../components/immortal/RulesCard";
 import FormatPicker from "../components/immortal/FormatPicker";
 import VideoPicker from "../components/immortal/VideoPicker";
 import { ActionButton, FieldLabel, InlineMessage, ScoreField, SubmissionSuccess, formStyles } from "../components/immortal/AttemptFormParts";
-import { listFormats, searchPlayers } from "../services/api";
+import { getMyStats, getPlayerLevel, listFormats, searchPlayers } from "../services/api";
 import type { VideoCandidate } from "../services/video";
 import { FALLBACK_FORMATS, formatByKey } from "../domain/formats";
 import type { ChallengeFormat, FormatKey } from "../domain/types";
+import { exceedsDirectLevelGap, MAX_DIRECT_LEVEL_GAP } from "../domain/challengeRules";
 import { COLORS } from "../theme";
 import { TITLE_MAX, cleanTitle, isNetworkMessage, parseDeclaredScore } from "./helpers/attempts";
 import { sendAttempt, useUserId } from "./helpers/sendAttempt";
 
-type Player = { user_id: string; pseudo: string | null; city: string | null };
+type Player = { user_id: string; pseudo: string | null; city: string | null; level: number | null };
 
 export default function CreateChallengeScreen() {
   const navigation = useNavigation<any>();
@@ -28,9 +29,10 @@ export default function CreateChallengeScreen() {
   const [title, setTitle] = useState("");
   const [score, setScore] = useState("");
   const [video, setVideo] = useState<VideoCandidate | null>(null);
-  const [recipient, setRecipient] = useState<{ id: string; pseudo: string | null } | null>(
+  const [recipient, setRecipient] = useState<{ id: string; pseudo: string | null; level?: number | null } | null>(
     params.recipientId ? { id: params.recipientId, pseudo: params.recipientPseudo ?? null } : null
   );
+  const [myLevel, setMyLevel] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Player[]>([]);
   const [searching, setSearching] = useState(false);
@@ -41,6 +43,14 @@ export default function CreateChallengeScreen() {
   const [offline, setOffline] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
   const busy = useRef(false);
+
+  useEffect(() => {
+    getMyStats().then((result) => { if (result.data) setMyLevel(result.data.level); });
+  }, []);
+
+  useEffect(() => {
+    if (recipient?.id) getPlayerLevel(recipient.id).then((level) => setRecipient((current) => current?.id === recipient.id ? { ...current, level } : current));
+  }, [recipient?.id]);
 
   useEffect(() => {
     let alive = true;
@@ -54,7 +64,7 @@ export default function CreateChallengeScreen() {
 
   useEffect(() => {
     if (params.formatKey) setFormatKey(params.formatKey);
-    if (params.recipientId) setRecipient({ id: params.recipientId, pseudo: params.recipientPseudo ?? null });
+    if (params.recipientId) setRecipient({ id: params.recipientId, pseudo: params.recipientPseudo ?? null, level: null });
   }, [params.formatKey, params.recipientId, params.recipientPseudo]);
 
   useEffect(() => {
@@ -107,6 +117,10 @@ export default function CreateChallengeScreen() {
     setSubmitError(null);
     setOffline(false);
     if (!format || !parsed || !parsed.ok || !video) return;
+    if (recipient && exceedsDirectLevelGap(myLevel, recipient.level)) {
+      setSubmitError("Écart de niveau trop important : limite de " + MAX_DIRECT_LEVEL_GAP + " niveaux.");
+      return;
+    }
     if (!userId) {
       setSubmitError("Connecte-toi pour lancer un défi.");
       return;
@@ -257,16 +271,18 @@ export default function CreateChallengeScreen() {
                   <Pressable
                     key={player.user_id}
                     onPress={() => {
-                      setRecipient({ id: player.user_id, pseudo: player.pseudo });
+                      setRecipient({ id: player.user_id, pseudo: player.pseudo, level: player.level });
                       setQuery("");
                       setResults([]);
                     }}
                     accessibilityRole="button"
                     accessibilityLabel={`Inviter ${player.pseudo ?? "ce joueur"}${player.city ? `, ${player.city}` : ""}`}
-                    style={styles.result}
+                    disabled={exceedsDirectLevelGap(myLevel, player.level)}
+                    style={[styles.result, exceedsDirectLevelGap(myLevel, player.level) ? { opacity: 0.45 } : null]}
                   >
                     <Text style={styles.recipientName}>{player.pseudo ?? "Joueur"}</Text>
                     {player.city ? <Text style={styles.hint}>{player.city}</Text> : null}
+                    <Text style={styles.hint}>{player.level != null ? (exceedsDirectLevelGap(myLevel, player.level) ? "Niveau " + player.level + " · écart trop important" : "Niveau " + player.level) : "Niveau indisponible"}</Text>
                   </Pressable>
                 ))}
               </>

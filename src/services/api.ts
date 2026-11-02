@@ -10,6 +10,7 @@ import type {
   LeaderboardRow,
   ModerationQueueItem,
   MyProfile,
+  MyPrivateProfile,
   MyStats,
   PublicEvent,
   TerritoryScope,
@@ -39,6 +40,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   moderator_cannot_decide_own_attempt: "Tu ne peux pas décider de ta propre performance.",
   reason_required: "Un motif est obligatoire.",
   invalid_pseudo: "Le pseudo doit faire entre 2 et 24 caractères.",
+  level_gap_too_large: "Écart de niveau trop important : les défis directs sont limités à 10 niveaux d’écart.",
   invalid_opponent: "Adversaire invalide.",
   opponent_not_found: "Adversaire introuvable.",
   date_in_past: "La date doit être dans le futur.",
@@ -118,14 +120,53 @@ export async function getMyStats(): Promise<ApiResult<MyStats>> {
   return { data: result.data?.[0] ?? { points: 0, level: 1, validated_count: 0 }, error: null };
 }
 
-export const searchPlayers = (query: string) =>
-  wrap<Array<{ user_id: string; pseudo: string | null; city: string | null }>>(() =>
+export async function getMyPrivateProfile(): Promise<ApiResult<MyPrivateProfile>> {
+  const uid = await currentUserId();
+  if (!uid) return { data: null, error: ERROR_MESSAGES.not_authenticated };
+  return wrap<MyPrivateProfile>(() =>
+    supabase
+      .from("player_private_profiles")
+      .select("birth_date,gender,height_cm,weight_kg")
+      .eq("user_id", uid)
+      .maybeSingle()
+  );
+}
+
+export async function updateMyPrivateProfile(input: MyPrivateProfile): Promise<ApiResult<{ user_id: string }>> {
+  const uid = await currentUserId();
+  if (!uid) return { data: null, error: ERROR_MESSAGES.not_authenticated };
+  return wrap<{ user_id: string }>(() =>
+    supabase
+      .from("player_private_profiles")
+      .upsert({ user_id: uid, ...input }, { onConflict: "user_id" })
+      .select("user_id")
+      .single()
+  );
+}
+
+export async function getPlayerLevel(userId: string): Promise<number | null> {
+  const result = await wrap<Array<{ level: number }>>(() =>
+    supabase.from("players_stats").select("level").eq("user_id", userId).limit(1)
+  );
+  return result.data?.[0]?.level ?? null;
+}
+
+export async function searchPlayers(query: string): Promise<ApiResult<Array<{ user_id: string; pseudo: string | null; city: string | null; level: number | null }>>> {
+  const profiles = await wrap<Array<{ user_id: string; pseudo: string | null; city: string | null }>>(() =>
     supabase
       .from("profiles")
       .select("user_id,pseudo,city")
       .ilike("pseudo", `%${query.replace(/[%_]/g, " ").trim()}%`)
       .limit(8)
   );
+  if (profiles.error || !profiles.data?.length) return { data: profiles.data?.map((p) => ({ ...p, level: null })) ?? [], error: profiles.error };
+  const stats = await wrap<Array<{ user_id: string; level: number }>>(() =>
+    supabase.from("players_stats").select("user_id,level").in("user_id", profiles.data!.map((p) => p.user_id))
+  );
+  if (stats.error) return { data: null, error: stats.error };
+  const levels = new Map((stats.data ?? []).map((item) => [item.user_id, item.level]));
+  return { data: profiles.data.map((p) => ({ ...p, level: levels.get(p.user_id) ?? null })), error: null };
+}
 
 // ---------- Formats ----------
 
