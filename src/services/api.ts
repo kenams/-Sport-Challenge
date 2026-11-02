@@ -114,6 +114,10 @@ export async function getMyProfile(): Promise<ApiResult<MyProfile>> {
   );
 }
 
+export async function setMyAvatar(slug: string): Promise<ApiResult<string>> {
+  return wrap<string>(() => supabase.rpc("set_my_avatar", { p_avatar_slug: slug }));
+}
+
 export async function getMyStats(): Promise<ApiResult<MyStats>> {
   const result = await wrap<MyStats[]>(() => supabase.rpc("my_stats"));
   if (result.error) return { data: null, error: result.error };

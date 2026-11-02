@@ -123,6 +123,7 @@ export default function ProfileScreen({ navigation }: any) {
             <ProfileSetupForm
               intro="Choisis ton pseudo public et indique ton territoire pour apparaître dans les records."
               initialPrivateProfile={privateProfile}
+              initialAvatarUrl={profile?.avatar_url}
               initialTerritory={{ country: profile?.country ?? "", region: profile?.region ?? "", city: profile?.city ?? "" }}
               submitLabel="Enregistrer mon profil"
               onSaved={() => load()}
@@ -140,6 +141,7 @@ export default function ProfileScreen({ navigation }: any) {
                   <ProfileSetupForm
                     initialPseudo={profile.pseudo}
                     initialPrivateProfile={privateProfile}
+                    initialAvatarUrl={profile.avatar_url}
                     initialTerritory={{ country: profile.country ?? "", region: profile.region ?? "", city: profile.city ?? "" }}
                     submitLabel="Enregistrer"
                     onSaved={() => {

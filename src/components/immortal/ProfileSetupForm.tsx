@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { COLORS } from "../../theme";
-import { updateMyPrivateProfile, updateMyProfile } from "../../services/api";
+import { setMyAvatar, updateMyPrivateProfile, updateMyProfile } from "../../services/api";
+import { AVATAR_OPTIONS, avatarUrl, type AvatarId } from "../../domain/avatars";
 import type { MyPrivateProfile } from "../../domain/types";
 import AccountField from "./AccountField";
 import ActionButton from "./ActionButton";
@@ -20,8 +21,9 @@ type Props = {
 };
 
 /** Pseudo + territoire déclaré. Sert à compléter un profil neuf et à modifier un profil existant (même formulaire). */
-export default function ProfileSetupForm({ initialPseudo, initialTerritory, initialPrivateProfile, submitLabel, intro, onSaved, onCancel }: Props) {
+export default function ProfileSetupForm({ initialPseudo, initialTerritory, initialPrivateProfile, initialAvatarUrl, submitLabel, intro, onSaved, onCancel }: Props) {
   const [pseudo, setPseudo] = useState(initialPseudo ?? "");
+  const [avatarId, setAvatarId] = useState<AvatarId>(() => AVATAR_OPTIONS.find((item) => initialAvatarUrl?.endsWith("/" + item.id + ".jpg"))?.id ?? "locks");
   const [territory, setTerritory] = useState<TerritoryInput>({
     country: initialTerritory?.country ?? "",
     region: initialTerritory?.region ?? "",
@@ -69,6 +71,12 @@ export default function ProfileSetupForm({ initialPseudo, initialTerritory, init
         return;
       }
     }
+    const avatarResult = await setMyAvatar(avatarId);
+    if (avatarResult.error) {
+      setSaving(false);
+      setError(avatarResult.error);
+      return;
+    }
     setSaving(false);
     onSaved();
   };
@@ -87,7 +95,25 @@ export default function ProfileSetupForm({ initialPseudo, initialTerritory, init
         hint="2 à 24 caractères. Visible des autres joueurs."
         error={pseudoError}
       />
-      <TerritoryForm value={territory} onChange={setTerritory} error={territoryError} />
+      <View style={styles.avatarSection}>
+        <Text style={styles.inputLabel}>Ton avatar public</Text>
+        <Text style={styles.privateHint}>Choisis un portrait illustré. Tu pourras le changer quand tu veux.</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.avatarList}>
+          {AVATAR_OPTIONS.map((option) => (
+            <TouchableOpacity
+              key={option.id}
+              onPress={() => setAvatarId(option.id)}
+              accessibilityRole="radio"
+              accessibilityLabel={option.label}
+              accessibilityState={{ selected: avatarId === option.id }}
+              style={styles.avatarOption}
+            >
+              <Image source={{ uri: avatarUrl(option.id) }} style={[styles.avatarImage, avatarId === option.id ? styles.avatarImageSelected : null]} />
+              <Text style={[styles.avatarLabel, avatarId === option.id ? styles.avatarLabelSelected : null]} numberOfLines={1}>{option.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
       <View style={styles.privateSection}>
         <TouchableOpacity
           onPress={() => setPrivateOpen((open) => !open)}
@@ -178,6 +204,13 @@ const styles = StyleSheet.create({
   wrap: { gap: 16 },
   intro: { color: COLORS.textMuted, fontSize: 14, lineHeight: 20 },
   error: { color: "#F87171", fontSize: 14, lineHeight: 20 },
+  avatarSection: { gap: 6 },
+  avatarList: { gap: 10, paddingVertical: 6, paddingRight: 8 },
+  avatarOption: { width: 76, alignItems: "center", gap: 5 },
+  avatarImage: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: COLORS.border },
+  avatarImageSelected: { borderColor: COLORS.primary },
+  avatarLabel: { color: COLORS.textMuted, fontSize: 10, textAlign: "center", width: 76 },
+  avatarLabelSelected: { color: COLORS.primary, fontWeight: "800" },
   privateSection: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, gap: 12 },
   privateToggle: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 48 },
   privateTitle: { color: COLORS.text, fontSize: 14, fontWeight: "800" },
