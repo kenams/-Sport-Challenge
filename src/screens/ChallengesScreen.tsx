@@ -17,7 +17,7 @@ type Filter = "all" | FormatKey;
 type Weekly = { week_start: string; format_key: FormatKey; note_fr: string | null };
 
 export default function ChallengesScreen() {
-  const [simulating, setSimulating] = useState(__DEV__);
+  const [simulating, setSimulating] = useState(false);
   return simulating
     ? <ArenaSimulationScreen onExit={() => setSimulating(false)} />
     : <RealChallengesScreen onSimulate={() => setSimulating(true)} />;
