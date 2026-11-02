@@ -67,7 +67,39 @@ drop policy if exists "allow challenge owner update responses" on public.challen
 drop policy if exists "allow insert own response votes" on public.challenge_response_votes;
 
 -- add_points ne doit jamais être appelable par un joueur.
-revoke execute on function public.add_points(uuid, integer) from public, anon, authenticated;
+-- Adaptation prod (02/11/2026) : add_points n'existe pas sur le projet de production, l'instruction directe échouerait.
+do $$
+begin
+  if to_regprocedure('public.add_points(uuid, integer)') is not null then
+    execute 'revoke execute on function public.add_points(uuid, integer) from public, anon, authenticated';
+  end if;
+end $$;
+
+-- Adaptation prod (02/11/2026) : la production nomme ses politiques d'origine autrement ("insert stats", "update stats"...).
+-- Les "drop policy" ci-dessus ne les atteignaient pas : un joueur connecté aurait pu continuer à écrire ses points. On les supprime ici.
+drop policy if exists "insert stats" on public.players_stats;
+drop policy if exists "update stats" on public.players_stats;
+drop policy if exists "insert challenges" on public.challenges;
+drop policy if exists "insert challenge_responses" on public.challenge_responses;
+drop policy if exists "allow challenge owner update responses" on public.challenge_responses;
+drop policy if exists "Users manage their daily rewards" on public.daily_rewards;
+drop policy if exists "insert users" on public.users;
+drop policy if exists "select users" on public.users;
+drop policy if exists "profiles_insert_own" on public.profiles;
+drop policy if exists "profiles_update_own" on public.profiles;
+-- La table events n'avait pas de RLS en production : sans elle, la politique de lecture admin ci-dessous n'a aucun effet.
+alter table public.events enable row level security;
+-- Fonctions du moteur d'origine : plus appelables par un joueur (les triggers et la clé de service continuent de fonctionner).
+do $$
+declare f text;
+begin
+  foreach f in array array['public.run_auto_engine()', 'public.auto_create_daily_challenges()', 'public.auto_inactivity_nudge()',
+    'public.auto_matchmake_players()', 'public.finalize_challenge_votes(bigint)', 'public.increment_points(uuid, integer)'] loop
+    if to_regprocedure(f) is not null then
+      execute 'revoke execute on function ' || f || ' from public, anon, authenticated';
+    end if;
+  end loop;
+end $$;
 
 ------------------------------------------------------------------------------------------------
 -- 1. Disciplines et formats d'épreuve (règles versionnées)
