@@ -182,6 +182,7 @@ export default function App() {
           {session ? (
             <>
               <Stack.Screen name="MainTabs" component={MainTabs} />
+              <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
               <Stack.Screen name="CreateChallenge" component={CreateChallengeScreen} />
               <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen as any} />
               <Stack.Screen name="RespondChallenge" component={RespondChallengeScreen as any} />
@@ -203,6 +204,7 @@ export default function App() {
             <>
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
               <Stack.Screen name="PublicEvent" component={PublicEventScreen as any} />
             </>
           )}
