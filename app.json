@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/immortal-k-logo.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/immortal-k-logo.png",
@@ -13,7 +13,13 @@
       "backgroundColor": "#050507"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "IMMORTAL utilise la caméra pour filmer ta série de pompes ou de tractions.",
+        "NSMicrophoneUsageDescription": "Le micro enregistre le son de ta vidéo de défi.",
+        "NSPhotoLibraryUsageDescription": "IMMORTAL accède à ta galerie pour que tu choisisses une vidéo de défi."
+      },
+      "bundleIdentifier": "com.kenams.immortalk"
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +28,11 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.kenams.immortalk"
+      "package": "com.kenams.immortalk",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -33,7 +43,21 @@
       }
     },
     "plugins": [
-      "expo-camera",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "IMMORTAL utilise la caméra pour filmer ton défi.",
+          "microphonePermission": "Le micro enregistre le son de ta vidéo de défi.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "IMMORTAL accède à ta galerie pour que tu choisisses une vidéo de défi.",
+          "cameraPermission": "IMMORTAL utilise la caméra pour filmer ton défi."
+        }
+      ],
       "expo-video",
       "expo-font",
       [

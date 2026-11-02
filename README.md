@@ -1,95 +1,30 @@
-# IMMORTAL-K (Arena Rivalité)
+# IMMORTAL — défis vidéo de pompes et de tractions
 
-Application React Native / Expo permettant de lancer des défis sportifs en vidéo, suivre des rivalités entre territoires (Île‑de‑France vs Tarn‑et‑Garonne), organiser des sessions Arena Live et piloter sa progression via un coach intégré.
+Application Expo / React Native (iOS, Android, web) avec Supabase. Deux épreuves seulement : **pompes (60 s)** et **tractions (maximum)**.
 
-## Features principales
+## Boucle de jeu
+Inscription → choix de l'épreuve → lancer un défi (vidéo) → inviter un ami → réponse vidéo → validation humaine par un modérateur → résultat → points et classements.
 
-- **Défis vidéo** : création de défis avec preuve vidéo et mise éventuelle en coins.
-- **Rivalité territoriale** : chaque utilisateur choisit son camp (IDF ou Tarn) et peut filtrer les défis par territoire.
-- **Arena Live Hub** :
-  - Annoncer un live ou rejoindre ceux en cours.
-  - Programmer un live (script cron `npm run cron:reminders` envoie un rappel 15 min avant via `coach_notifications`).
-  - Section “Lives programmés” et mode démo.
-  - Partage enrichi (mention du territoire + lien).
-- **Coach de rue** :
-  - Dashboard “Coach” avec objectifs quotidiens et rappel du cash/punitions.
-  - Tips d’onboarding (Rivalité / Live / Boutique) présentés une fois.
-- **Moderation / sanctions** :
-  - Écran “Arena Reports” affichant les signalements avec actions rapidess (Valider = sanction 3 pubs, Rejeter).
-  - Quota anti-spam : max 5 défis publiés par utilisateur sur 24h (vérifié dans `CreateChallengeScreen`).
-- **Télémétrie** :
-  - `src/services/telemetry.ts` logge des événements (live_programmé, live_share, rivalité_perdue) dans la table `events`.
+## Règles garanties par le serveur (migration `supabase/migrations/20261101120000_immortal_server_authority.sql`)
+- Le client n'écrit jamais ses points : ils sont dérivés des performances validées.
+- Personne ne valide sa propre performance ; seuls les modérateurs décident, et chaque décision est tracée (`moderation_log`).
+- Limite de 10 performances par 24 h, vidéos privées (URL signées), signalements, retrait de vidéo.
+- Classements territoriaux basés sur le territoire **déclaré**, non vérifié.
+- Droits Pro écrits uniquement côté serveur (`apply_entitlement_event`).
 
-## Prérequis
-
-- Node.js 18+
-- npm ou yarn
-- Compte Supabase (variables `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY` pour l'app, et `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` pour certains scripts)
-
-## Installation
-
-```sh
+## Lancer en local
+```
+supabase start                      # base locale (Docker)
 npm install
+EXPO_PUBLIC_SUPABASE_URL=http://127.0.0.1:<port> EXPO_PUBLIC_SUPABASE_ANON_KEY=<clé anon locale> npx expo start --web
+node scripts/seed-local-demo.mjs    # admin + 8 joueurs fictifs (base locale uniquement)
+node scripts/test-server-rules.mjs  # 121 vérifications des règles serveur (base locale uniquement)
+npx tsc --noEmit && npx jest
 ```
 
-Crée un fichier `.env.local` (ou configure la plateforme) avec :
+## État honnête
+- **Fait et testé** : règles serveur (121 vérifications), logique des écrans (jest), typage.
+- **Non fait** : abonnement Pro (rien n'est achetable), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
+- La migration n'est pas appliquée à la base de production ; à faire seulement après sauvegarde et accord.
 
-```sh
-EXPO_PUBLIC_SUPABASE_URL=...
-EXPO_PUBLIC_SUPABASE_ANON_KEY=...
-EXPO_PUBLIC_ARENA_SIGNAL_URL=... # URL de la function arena-signal
-
-# scripts Node
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=... # requis pour les scripts admin
-```
-
-## Développement
-
-```sh
-npm run start         # Expo
-npm run android       # Expo Go / device
-npm run ios           # Expo Go / iOS
-npm run web           # Expo web
-```
-
-### Scripts utilitaires
-
-- `npm run check:flows` : test end-to-end des flows critiques (création user -> défi -> live_programmé). Nécessite `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY`.
-- `npm run cron:reminders` : script à lancer via un cron (ou service planifié) pour envoyer les notifications `live_reminder` 15 minutes avant une session programmée.
-- `npm run lint` / `npm run test` (si configuré plus tard).
-
-## Structure
-
-- `src/screens` : écrans principaux (Home, Coach, LiveHub, etc.)
-- `src/services/telemetry.ts` : logging d’événements.
-- `scripts/` :
-  - `checkFlows.js` : QA flows critiques Supabase.
-  - `runLiveReminders.js` : scheduler de notifications Arena Live.
-- `supabase/` : schéma SQL + functions Edge (arena-signal).
-
-## Workflows importants
-
-1. **Programmation Live** :
-   - Dans le Hub, un utilisateur choisit un défi, clique sur “Programmer”.
-   - `lives_schedule` reçoit `reminder_sent:false`.
-   - Le cron `runLiveReminders` (exécuté toutes les minutes) envoie une `coach_notification` 15 min avant le créneau.
-
-2. **Déclaration gagnant** :
-   - `ChallengeDetailScreen` logge un événement `rivalité_perdue` lorsqu’un challenger d’un autre territoire prend l’avantage, et génère une notification “dept_rivalry”.
-
-3. **Modération** :
-   - `ArenaReportsScreen` liste les signalements. L’admin peut valider/annuler.
-   - Validation = `punishments` (3 pubs) + statut mis à jour.
-
-## TODO / pistes restantes
-
-- Filtre plus riche et pagination côté Hub Live.
-- Rappels push natifs (expo-notifications) en complément des notifications coach.
-- Génération d’un visuel de partage (story format).
-- Tests automatiques supplémentaires (unitaires/e2e).
-
-## License
-
-Projet interne (copyright propriétaire).
-
+Voir `docs/PRO_SETUP.md` (abonnements) et `docs/COSTS.md` (coûts).

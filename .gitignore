@@ -5,3 +5,4 @@ node_modules
 .env.local
 .expo/
 supabase/.temp/
+.local-demo-credentials.txt
