@@ -64,7 +64,6 @@
   },
   "private": true,
   "overrides": {
-    "image-size": "2.0.4",
     "postcss": "8.5.32"
   }
 }
