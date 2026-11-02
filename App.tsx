@@ -11,6 +11,7 @@ import { ensurePlayer } from "./src/services/api";
 
 import LoginScreen from "./src/screens/Auth/LoginScreen";
 import RegisterScreen from "./src/screens/Auth/RegisterScreen";
+import ResetPasswordScreen from "./src/screens/Auth/ResetPasswordScreen";
 import OnboardingScreen, { hasSeenOnboarding } from "./src/screens/OnboardingScreen";
 
 import ChallengesScreen from "./src/screens/ChallengesScreen";
@@ -195,6 +196,7 @@ export default function App() {
               <Stack.Screen name="Onboarding" component={OnboardingScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
               <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
               <Stack.Screen name="PublicEvent" component={PublicEventScreen as any} />
             </>
           ) : (
