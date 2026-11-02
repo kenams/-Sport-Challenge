@@ -160,6 +160,7 @@ export default function PublicEventScreen({ navigation, route }: any) {
           a={{ id: event.player_a.id, name: nameA, supporters: event.supporters_a }}
           b={{ id: event.player_b.id, name: nameB, supporters: event.supporters_b }}
           authed={!!uid}
+          viewerId={uid}
           supportedId={engagement.supportedId}
           reminderOn={engagement.reminderOn}
           busy={engagement.busy}

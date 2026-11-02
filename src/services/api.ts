@@ -46,6 +46,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   event_not_open_for_support: "Le soutien n'est possible que pour un événement confirmé.",
   event_not_open_for_reminder: "Le rappel n'est possible que pour un événement confirmé.",
   invalid_supported_player: "Choisis l'un des deux joueurs.",
+  participant_cannot_support: "Tu joues ce duel : tu ne peux pas te compter dans les soutiens.",
   pro_required: "Cette fonction fait partie d'IMMORTAL Pro.",
   invalid_code: "Code d'invitation invalide.",
   group_full: "Ce groupe est complet.",
@@ -232,13 +233,21 @@ export async function isModerator(): Promise<boolean> {
 }
 
 export async function listModerationQueue(mode: "pending" | "reported"): Promise<ApiResult<ModerationQueueItem[]>> {
+  // "Signalées" = tentatives avec au moins un signalement encore ouvert (report_count est cumulatif).
+  let openCounts = new Map<string, number>();
+  if (mode === "reported") {
+    const open = await wrap<Array<{ attempt_id: string }>>(() => supabase.from("attempt_reports").select("attempt_id").eq("status", "open"));
+    if (open.error || !open.data) return { data: null, error: open.error };
+    for (const row of open.data) openCounts.set(row.attempt_id, (openCounts.get(row.attempt_id) ?? 0) + 1);
+    if (openCounts.size === 0) return { data: [], error: null };
+  }
   const result = await wrap<Attempt[]>(() => {
     let query = supabase.from("attempt_feed").select(FEED_COLUMNS).order("created_at", { ascending: true }).limit(50);
-    query = mode === "pending" ? query.eq("status", "pending") : query.gt("report_count", 0).neq("status", "withdrawn");
+    query = mode === "pending" ? query.eq("status", "pending") : query.in("id", [...openCounts.keys()]).neq("status", "withdrawn");
     return query;
   });
   if (result.error || !result.data) return { data: null, error: result.error };
-  return { data: result.data.map((a) => ({ ...a, open_reports: a.report_count })), error: null };
+  return { data: result.data.map((a) => ({ ...a, open_reports: mode === "reported" ? openCounts.get(a.id) ?? 0 : a.report_count })), error: null };
 }
 
 export const moderateAttempt = (id: string, action: "validate" | "reject" | "restore" | "remove_video" | "restore_video" | "dismiss_reports", score?: number | null, reason?: string | null) =>

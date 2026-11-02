@@ -13,6 +13,8 @@ type Props = {
   a: Side;
   b: Side;
   authed: boolean;
+  /** Joueur connecté : un des deux duellistes ne peut pas se compter dans les soutiens. */
+  viewerId?: string | null;
   supportedId: string | null;
   reminderOn: boolean;
   busy: "support" | "reminder" | null;
@@ -32,6 +34,7 @@ export default function EventSupportPanel(p: Props) {
   const [choosing, setChoosing] = useState(false);
   const [needAuth, setNeedAuth] = useState<null | "support" | "reminder">(null);
   const open = canSupport(p.status);
+  const isPlayer = !!p.viewerId && (p.viewerId === p.a.id || p.viewerId === p.b.id);
 
   const startSupport = () => {
     if (!p.authed) return setNeedAuth("support");
@@ -60,13 +63,15 @@ export default function EventSupportPanel(p: Props) {
 
       {open ? (
         <View style={styles.actions}>
-          <EventAction
-            label={p.supportedId ? "Changer mon soutien" : "Je viens soutenir"}
-            onPress={startSupport}
-            selected={choosing}
-            accessibilityHint="Choisir le joueur à soutenir"
-          />
-          {choosing && p.authed ? (
+          {isPlayer ? null : (
+            <EventAction
+              label={p.supportedId ? "Changer mon soutien" : "Je viens soutenir"}
+              onPress={startSupport}
+              selected={choosing}
+              accessibilityHint="Choisir le joueur à soutenir"
+            />
+          )}
+          {choosing && p.authed && !isPlayer ? (
             <View style={styles.choices}>
               {[p.a, p.b].map((side) => (
                 <View key={side.id} style={styles.choice}>

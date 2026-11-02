@@ -221,6 +221,7 @@ export default function EventDetailScreen({ navigation, route }: any) {
             a={{ id: a.id, name: nameA, supporters: pub.supporters_a }}
             b={{ id: b.id, name: nameB, supporters: pub.supporters_b }}
             authed={!!uid}
+            viewerId={uid}
             supportedId={engagement.supportedId}
             reminderOn={engagement.reminderOn}
             busy={engagement.busy}

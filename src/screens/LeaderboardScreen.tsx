@@ -69,7 +69,7 @@ export default function LeaderboardScreen({ navigation }: any) {
   const champion = rows.find((r) => r.rank === 1) ?? null;
   const unit = UNITS[format];
   const formatLabelText = FALLBACK_FORMATS.find((f) => f.key === format)?.label_fr ?? "";
-  const scopeText = scope === "world" ? "dans le monde" : resolved.label ? `à ${resolved.label}` : "";
+  const scopeText = scope === "world" ? "dans le monde" : resolved.label ? `${({ country: "pays", region: "région", city: "ville" } as Record<string, string>)[scope] ?? "zone"} : ${resolved.label}` : "";
 
   return (
     <ScreenContainer>

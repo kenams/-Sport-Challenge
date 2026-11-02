@@ -54,7 +54,7 @@ export default function AttemptCard({ attempt, onPress, responseCount, nominativ
           <Text style={styles.title} numberOfLines={2}>
             {challengeTitle(attempt, format)}
           </Text>
-          <Text style={styles.format}>{format}</Text>
+          {challengeTitle(attempt, format) !== format ? <Text style={styles.format}>{format}</Text> : null}
           {nominative || attempt.recipient_user_id ? <Text style={styles.nominative}>Défi nominatif</Text> : null}
         </View>
         <View style={[styles.scoreBox, retained ? styles.scoreBoxRetained : null]}>
