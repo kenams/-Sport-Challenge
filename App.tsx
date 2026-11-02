@@ -56,7 +56,7 @@ function CreateButton({ onPress }: { onPress: () => void }) {
         elevation: 8,
       }}
     >
-      <FontAwesome5 name="plus" size={20} color=COLORS.background />
+      <FontAwesome5 name="plus" size={20} color={COLORS.background} />
     </TouchableOpacity>
   );
 }
@@ -170,7 +170,7 @@ export default function App() {
       <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: "center", alignItems: "center" }}>
         <Image source={logoSource} style={{ width: 120, height: 120, marginBottom: 16 }} resizeMode="contain" />
         <Text style={{ fontSize: 20, fontWeight: "900", color: COLORS.primary, letterSpacing: 2, marginBottom: 8 }}>IMMORTAL</Text>
-        <ActivityIndicator size="large" color=COLORS.primary />
+        <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
   }
