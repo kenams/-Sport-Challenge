@@ -15,7 +15,7 @@ Projet Supabase de production : `sport-challenge-app` (ref `sjnlilbsqecznpxbqukw
 
 ## 2. Appliquer les migrations (ordre strict, un fichier à la fois)
 Appliquer dans l'ordre de leurs noms tous les fichiers de `supabase/migrations/` postérieurs à `20261101120000` (inclus), sans les `.rollback.sql` :
-`20261101120000_immortal_server_authority` → `20261101193245_fix_group_members_recursion` → `20261102120000_support_event_not_participant` → `20261102130000_lock_profiles_writes` → `20261102140000_account_deletion` → puis les migrations des commentaires/encouragements si elles existent à ce moment-là (lister le dossier).
+`20261101120000_immortal_server_authority` → `20261101193245_fix_group_members_recursion` → `20261102120000_support_event_not_participant` → `20261102130000_lock_profiles_writes` → `20261102140000_account_deletion` → `20261102150000_cheers_and_comments`.
 Après chaque fichier : `select * from supabase_migrations.schema_migrations order by version desc limit 3;` et un test rapide. En cas de problème : le `.rollback.sql` du fichier concerné, ou restauration de la sauvegarde.
 
 ## 3. Contrôles après migration (script prêt)
@@ -26,7 +26,7 @@ Après chaque fichier : `select * from supabase_migrations.schema_migrations ord
 
 ## 4. Fonctions Edge et secrets
 ```
-supabase functions deploy delete-account
+supabase functions deploy delete-account   # (JWT requis)
 supabase functions deploy revenuecat-webhook --no-verify-jwt
 supabase functions deploy stripe-webhook --no-verify-jwt
 supabase secrets set REVENUECAT_WEBHOOK_AUTH=<secret> STRIPE_WEBHOOK_SECRET=<whsec_...>
