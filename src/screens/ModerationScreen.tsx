@@ -7,12 +7,13 @@ import ErrorState from "../components/immortal/ErrorState";
 import ModerationCard from "../components/immortal/ModerationCard";
 import { COLORS } from "../theme";
 import { supabase } from "../supabase";
-import { isModerator, listFormats, listModerationQueue, moderateAttempt } from "../services/api";
+import ActionButton from "../components/immortal/ActionButton";
+import { isModerator, listFormats, listModerationQueue, listReportedComments, moderateAttempt, moderateComment, type ReportedComment } from "../services/api";
 import { FALLBACK_FORMATS, formatByKey } from "../domain/formats";
 import type { ChallengeFormat, ModerationQueueItem } from "../domain/types";
 import type { ModerationAction } from "./helpers/moderationInput";
 
-type Mode = "pending" | "reported";
+type Mode = "pending" | "reported" | "comments";
 type Access = "checking" | "allowed" | "denied";
 
 const SUCCESS: Record<ModerationAction, string> = {
@@ -27,6 +28,8 @@ export default function ModerationScreen() {
   const [access, setAccess] = useState<Access>("checking");
   const [mode, setMode] = useState<Mode>("pending");
   const [items, setItems] = useState<ModerationQueueItem[]>([]);
+  const [commentItems, setCommentItems] = useState<ReportedComment[]>([]);
+  const [commentBusy, setCommentBusy] = useState<number | null>(null);
   const [formats, setFormats] = useState<ChallengeFormat[]>(FALLBACK_FORMATS);
   const [uid, setUid] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,9 +56,16 @@ export default function ModerationScreen() {
       if (refresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
-      const result = await listModerationQueue(which);
-      if (result.error) setError(result.error);
-      setItems(result.data ?? []);
+      if (which === "comments") {
+        const res = await listReportedComments();
+        if (res.error) setError(res.error);
+        setCommentItems(res.data ?? []);
+        setItems([]);
+      } else {
+        const result = await listModerationQueue(which);
+        if (result.error) setError(result.error);
+        setItems(result.data ?? []);
+      }
       setLoading(false);
       setRefreshing(false);
     },
@@ -76,6 +86,19 @@ export default function ModerationScreen() {
     },
     [load, mode]
   );
+
+  const decideComment = async (item: ReportedComment, action: "hide" | "dismiss_reports") => {
+    if (commentBusy !== null) return;
+    setCommentBusy(item.id);
+    const res = await moderateComment(item.id, action, null);
+    setCommentBusy(null);
+    if (res.error) {
+      setNotice(res.error);
+      return;
+    }
+    setNotice(action === "hide" ? "Commentaire masqué." : "Signalements classés sans suite.");
+    await load("comments", true);
+  };
 
   if (access === "checking") {
     return (
@@ -107,6 +130,7 @@ export default function ModerationScreen() {
         <View style={styles.tabs} accessibilityRole="tablist">
           <Tab label="À valider" selected={mode === "pending"} onPress={() => { setNotice(null); setMode("pending"); }} />
           <Tab label="Signalées" selected={mode === "reported"} onPress={() => { setNotice(null); setMode("reported"); }} />
+          <Tab label="Commentaires" selected={mode === "comments"} onPress={() => { setNotice(null); setMode("comments"); }} />
         </View>
         <Text style={styles.help}>
           Compte les répétitions sur la vidéo, selon les règles du format. Chaque décision est enregistrée dans le journal de modération.
@@ -123,6 +147,19 @@ export default function ModerationScreen() {
           </View>
         ) : error ? (
           <ErrorState message={error} onRetry={() => load(mode)} />
+        ) : mode === "comments" ? (
+          commentItems.length === 0 ? (
+            <EmptyState title="Aucun commentaire signalé" message="Aucun signalement de commentaire à examiner pour le moment." />
+          ) : (
+            commentItems.map((c) => (
+              <View key={c.id} style={styles.commentCard}>
+                <Text style={styles.commentAuthor}>{c.pseudo ?? "Joueur"}  ·  {c.open_reports} signalement(s)</Text>
+                <Text style={styles.commentBody}>{c.body}</Text>
+                <ActionButton label="Masquer le commentaire" variant="danger" loading={commentBusy === c.id} onPress={() => decideComment(c, "hide")} />
+                <ActionButton label="Classer sans suite" variant="ghost" disabled={commentBusy !== null} onPress={() => decideComment(c, "dismiss_reports")} />
+              </View>
+            ))
+          )
         ) : items.length === 0 ? (
           <EmptyState
             title={mode === "pending" ? "Rien à valider" : "Aucune performance signalée"}
@@ -167,6 +204,9 @@ const styles = StyleSheet.create({
   tabOn: { borderColor: COLORS.primary, backgroundColor: "rgba(212,175,55,0.16)" },
   tabText: { color: COLORS.textMuted, fontSize: 14, fontWeight: "600" },
   tabTextOn: { color: COLORS.primary, fontWeight: "800" },
+  commentCard: { gap: 10, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
+  commentAuthor: { color: COLORS.primary, fontSize: 13, fontWeight: "800" },
+  commentBody: { color: COLORS.text, fontSize: 15, lineHeight: 21 },
   help: { color: COLORS.textMuted, fontSize: 13, lineHeight: 19 },
   notice: { color: COLORS.success, fontSize: 14, fontWeight: "700" },
 });

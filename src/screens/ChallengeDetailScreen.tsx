@@ -6,6 +6,7 @@ import UserAvatar from "../components/UserAvatar";
 import RulesCard from "../components/immortal/RulesCard";
 import StatusBadge from "../components/immortal/StatusBadge";
 import AttemptVideo from "../components/immortal/AttemptVideo";
+import AttemptSocial from "../components/immortal/AttemptSocial";
 import ErrorState from "../components/immortal/ErrorState";
 import EmptyState from "../components/immortal/EmptyState";
 import { ActionButton, ConfirmModal, FieldLabel, InlineMessage, formStyles } from "../components/immortal/AttemptFormParts";
@@ -91,6 +92,8 @@ function PerformanceCard(props: {
       ) : (
         <ActionButton label="Voir la vidéo" variant="ghost" onPress={() => setVideoOpen(true)} hint={`Lit la vidéo de ${pseudo}`} />
       )}
+
+      {attempt.status === "validated" && !attempt.video_removed ? <AttemptSocial attemptId={attempt.id} ownerId={attempt.user_id} userId={userId} /> : null}
 
       {canWithdraw(attempt, userId) || canReport(attempt, userId) ? (
         <View style={styles.actions}>

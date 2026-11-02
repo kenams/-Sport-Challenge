@@ -52,6 +52,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   group_full: "Ce groupe est complet.",
   group_limit: "Tu as atteint la limite de groupes.",
   invalid_theme: "Thème inconnu.",
+  deletion_failed: "La suppression n'a pas pu aboutir. Réessaie dans un instant ; rien n'est perdu à moitié.",
+  comment_empty: "Écris un commentaire avant d'envoyer.",
+  comment_too_long: "Ton commentaire dépasse 280 caractères.",
+  comment_not_allowed: "Les commentaires sont possibles uniquement sur une performance validée.",
+  comment_rate_limited: "Tu commentes trop vite. Réessaie dans quelques minutes.",
+  cannot_cheer_own_attempt: "Tu ne peux pas t'encourager toi-même.",
+  cannot_report_own_comment: "Tu ne peux pas signaler ton propre commentaire.",
+  comment_duplicate: "Tu as déjà envoyé ce commentaire.",
+  not_found: "Élément introuvable ou déjà supprimé.",
+  profile_required: "Choisis un pseudo dans ton profil avant de commenter.",
 };
 
 export function describeError(error: { message?: string; code?: string } | null | undefined): string {
@@ -325,3 +335,57 @@ export const groupLeaderboard = (groupId: string, format: FormatKey) =>
   wrap<Array<{ rank: number; user_id: string; pseudo: string | null; best_score: number; achieved_at: string }>>(() =>
     supabase.rpc("group_leaderboard", { p_group: groupId, p_format: format })
   );
+
+// ---------- Suppression de compte ----------
+
+/** Supprime le compte du joueur connecté (vidéos, données, compte). Irréversible. Passe par l'Edge Function delete-account. */
+export async function deleteMyAccount(): Promise<ApiResult<true>> {
+  try {
+    const { data, error } = await supabase.functions.invoke("delete-account", { body: { confirm: true } });
+    if (error || !data?.ok) return { data: null, error: ERROR_MESSAGES.deletion_failed };
+    await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+    return { data: true, error: null };
+  } catch {
+    return { data: null, error: ERROR_MESSAGES.deletion_failed };
+  }
+}
+
+// ---------- Encouragements et commentaires (sans effet sur points ni classements) ----------
+
+export type AttemptSocial = { cheer_count: number; comment_count: number; cheered_by_me: boolean; can_interact: boolean };
+export type CommentRow = {
+  id: number;
+  user_id: string;
+  pseudo: string | null;
+  body: string;
+  created_at: string;
+  mine: boolean;
+  status: "visible" | "hidden";
+  report_count: number;
+};
+export type ReportedComment = {
+  id: number;
+  attempt_id: string;
+  user_id: string;
+  pseudo: string | null;
+  body: string;
+  status: "visible" | "hidden";
+  open_reports: number;
+  created_at: string;
+};
+export type CommentReportReason = "spam" | "harassment" | "inappropriate" | "other";
+
+export async function getAttemptSocial(attemptId: string): Promise<ApiResult<AttemptSocial | null>> {
+  const result = await wrap<AttemptSocial[]>(() => supabase.rpc("attempt_social", { p_attempt: attemptId }));
+  if (result.error) return { data: null, error: result.error };
+  return { data: result.data?.[0] ?? null, error: null };
+}
+export const setCheer = (attemptId: string, on: boolean) => wrap<number>(() => supabase.rpc("set_cheer", { p_attempt: attemptId, p_on: on }));
+export const listComments = (attemptId: string, limit = 50, before: number | null = null) =>
+  wrap<CommentRow[]>(() => supabase.rpc("list_comments", { p_attempt: attemptId, p_limit: limit, p_before: before }));
+export const postComment = (attemptId: string, body: string) => wrap<number>(() => supabase.rpc("post_comment", { p_attempt: attemptId, p_body: body }));
+export const deleteComment = (id: number) => wrap(() => supabase.rpc("delete_comment", { p_id: id }));
+export const reportComment = (id: number, reason: CommentReportReason) => wrap(() => supabase.rpc("report_comment", { p_id: id, p_reason: reason }));
+export const listReportedComments = () => wrap<ReportedComment[]>(() => supabase.rpc("list_reported_comments"));
+export const moderateComment = (id: number, action: "hide" | "restore" | "dismiss_reports", reason?: string | null) =>
+  wrap(() => supabase.rpc("moderate_comment", { p_id: id, p_action: action, p_reason: reason ?? null }));

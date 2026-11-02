@@ -120,7 +120,7 @@ export default function EventDetailScreen({ navigation, route }: any) {
     return (
       <ScreenContainer>
         <View style={{ gap: 12 }}>
-          <EmptyState title="Événement introuvable" message="Cet événement n'existe plus, a été annulé ou n'est pas accessible avec ton compte." actionLabel="Retour aux événements" onAction={() => navigation.navigate("Events")} />
+          <EmptyState title="Événement introuvable" message="Cet événement n'existe plus, a été annulé ou n'est pas accessible avec ton compte." actionLabel="Retour aux événements" onAction={() => navigation.navigate("MainTabs", { screen: "Evenements" })} />
           {ready && !uid ? <EventAuthPrompt reason="Connecte-toi pour voir les événements qui te concernent." onLogin={goLogin} onRegister={goRegister} /> : null}
         </View>
       </ScreenContainer>

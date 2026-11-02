@@ -2,6 +2,7 @@
 // Usage : SUPABASE_URL=... SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... node scripts/test-server-rules.mjs
 // À lancer UNIQUEMENT contre une base locale de test (jamais la production).
 import { createClient } from "@supabase/supabase-js";
+import { deleteAccount } from "../supabase/functions/_shared/deleteAccount.ts";
 
 const URL = process.env.SUPABASE_URL;
 const ANON = process.env.SUPABASE_ANON_KEY;
@@ -398,6 +399,250 @@ console.log("\n=== 11. Limites de débit ===");
     if (r.error) refused += 1;
   }
   ok("au plus 10 tentatives par 24 h (les suivantes sont refusées)", refused === 2, `refusées=${refused}`);
+}
+
+console.log("\n=== 12. Droits Pro : scénarios Stripe vus par la base (le serveur seul décide) ===");
+{
+  const pro = await makeUser("proguy");
+  await profile(pro, "ProGuy", "Nice", "PACA", "France");
+  const base = Date.now() - 600000;
+  let n = 0;
+  const ev = (plan, status, periodEnd, type = "customer.subscription.updated", at = null) => {
+    n += 1;
+    const when = at ?? base + n * 1000;
+    return admin.rpc("apply_entitlement_event", { p_event_id: `evt_s_${stamp}_${n}`, p_source: "stripe", p_user_id: pro.id, p_type: type, p_event_time: new Date(when).toISOString(), p_plan: plan, p_status: status, p_product_id: "prod_pro", p_period_end: periodEnd, p_payload: { simulated: true } });
+  };
+  const future = new Date(Date.now() + 20 * 86400000).toISOString();
+  const soon = new Date(Date.now() + 2 * 86400000).toISOString();
+
+  ok("compte gratuit : fonctions Pro fermées côté serveur", !!(await pro.client.rpc("create_group", { p_name: "Crew Pro" })).error && !!(await pro.client.rpc("my_progress", { p_format: "pushups_60s" })).error && !!(await pro.client.rpc("set_card_theme", { p_theme: "gold" })).error);
+  ok("un joueur ne peut pas simuler lui-même un événement de paiement", !!(await pro.client.rpc("apply_entitlement_event", { p_event_id: "evt_self", p_source: "stripe", p_user_id: pro.id, p_type: "x", p_event_time: new Date().toISOString(), p_plan: "pro", p_status: "active", p_product_id: "x", p_period_end: future })).error);
+  ok("achat (abonnement actif) : Pro déverrouillé", (await ev("pro", "active", future, "customer.subscription.created")).data === "applied" && (await pro.client.rpc("is_pro")).data === true);
+  ok("avec Pro valide : groupe, statistiques et thème accessibles", !(await pro.client.rpc("create_group", { p_name: "Crew Pro" })).error && !(await pro.client.rpc("my_progress", { p_format: "pushups_60s" })).error && !(await pro.client.rpc("set_card_theme", { p_theme: "steel" })).error);
+  ok("résiliation programmée : Pro maintenu jusqu'à la fin de période", (await ev("pro", "cancelled_pending", soon)).data === "applied" && (await pro.client.rpc("is_pro")).data === true);
+  ok("échec de paiement : accès maintenu pendant le délai de grâce", (await ev("pro", "billing_issue", soon, "invoice.payment_failed")).data === "applied" && (await pro.client.rpc("is_pro")).data === true);
+  const stalled = await ev("free", "expired", null, "customer.subscription.deleted", base - 100000);
+  ok("expiration arrivée en retard (horodatage ancien) : ignorée, le Pro reste", stalled.data === "stale" && (await pro.client.rpc("is_pro")).data === true);
+  ok("expiration reçue dans l'ordre : Pro retiré", (await ev("free", "expired", null, "customer.subscription.deleted", Date.now() - 500)).data === "applied" && (await pro.client.rpc("is_pro")).data === false);
+  ok("après expiration, les fonctions Pro sont de nouveau fermées", !!(await pro.client.rpc("my_progress", { p_format: "pushups_60s" })).error && !!(await pro.client.rpc("set_card_theme", { p_theme: "emerald" })).error);
+  ok("une période échue ne donne plus le Pro même si le statut est actif", (await ev("pro", "active", new Date(Date.now() - 5000).toISOString(), "invoice.paid", Date.now() - 200)).data === "applied" && (await pro.client.rpc("is_pro")).data === false);
+  ok("les événements ne créent aucun droit pour un autre joueur", (await bob.client.rpc("is_pro")).data === false);
+  await admin.from("entitlements").delete().eq("user_id", pro.id);
+  await admin.from("payment_events").delete().like("event_id", `evt_s_${stamp}_%`);
+  ok("nettoyage de la simulation : plus aucun droit pour le compte de test", (await pro.client.rpc("is_pro")).data === false);
+}
+
+console.log("\n=== 13. Encourager et commentaires ===");
+{
+  const ath = await makeUser("athlete");
+  const fan1 = await makeUser("fan1");
+  const fan2 = await makeUser("fan2");
+  const nopseudo = await makeUser("nopseudo");
+  await profile(ath, "Athlète", "Brest", "Bretagne", "France");
+  await profile(fan1, "Fan1", "Rennes", "Bretagne", "France");
+  await profile(fan2, "Fan2", "Nantes", "Pays de la Loire", "France");
+
+  const mk = async (score) => (await submit(ath, "pushups_60s", score, { title: "Cible sociale" })).data;
+  const pendingId = await mk(20);
+  const valId = await mk(33);
+  const rejId = await mk(10);
+  const remId = await mk(11);
+  await moderate(mod, valId, "validate", 33);
+  await moderate(mod, rejId, "reject", null, "Mauvais exercice");
+  await moderate(mod, remId, "validate", 11);
+  await moderate(mod, remId, "remove_video", null, "Vidéo retirée pour le test");
+
+  const pointsBefore = await pointsOf(ath);
+  const lbBefore = JSON.stringify(((await anon.rpc("leaderboard", { p_format: "pushups_60s", p_scope: "world", p_value: null, p_limit: 200 })).data ?? []).map((r) => [r.user_id, r.best_score, r.rank]));
+
+  console.log("-- encouragements");
+  ok("encourager une performance en attente est refusé", !!(await fan1.client.rpc("set_cheer", { p_attempt: pendingId, p_on: true })).error);
+  ok("encourager une performance rejetée est refusé", !!(await fan1.client.rpc("set_cheer", { p_attempt: rejId, p_on: true })).error);
+  ok("encourager une performance dont la vidéo est retirée est refusé", !!(await fan1.client.rpc("set_cheer", { p_attempt: remId, p_on: true })).error);
+  ok("on ne s'encourage pas soi-même", !!(await ath.client.rpc("set_cheer", { p_attempt: valId, p_on: true })).error);
+  ok("un visiteur anonyme ne peut pas encourager", !!(await anon.rpc("set_cheer", { p_attempt: valId, p_on: true })).error);
+  const c1 = await fan1.client.rpc("set_cheer", { p_attempt: valId, p_on: true });
+  ok("encourager une performance validée : compteur à 1", !c1.error && c1.data === 1, errText(c1.error));
+  const c1b = await fan1.client.rpc("set_cheer", { p_attempt: valId, p_on: true });
+  ok("un seul encouragement par joueur (le second clic ne double pas)", c1b.data === 1);
+  ok("un deuxième joueur encourage : compteur à 2", (await fan2.client.rpc("set_cheer", { p_attempt: valId, p_on: true })).data === 2);
+  let soc = (await fan1.client.rpc("attempt_social", { p_attempt: valId })).data?.[0];
+  ok("le compteur est dérivé du serveur et indique mon encouragement", soc?.cheer_count === 2 && soc?.cheered_by_me === true && soc?.can_interact === true);
+  ok("retirer son encouragement : compteur à 1", (await fan1.client.rpc("set_cheer", { p_attempt: valId, p_on: false })).data === 1);
+  soc = (await fan1.client.rpc("attempt_social", { p_attempt: valId })).data?.[0];
+  ok("après retrait, cheered_by_me est faux", soc?.cheered_by_me === false && soc?.cheer_count === 1);
+  ok("pas de compteurs sur une performance en attente", ((await fan1.client.rpc("attempt_social", { p_attempt: pendingId })).data ?? []).length === 0);
+  ok("le client ne peut pas écrire les encouragements directement", !!(await fan1.client.from("attempt_cheers").insert({ attempt_id: valId, user_id: fan1.id })).error);
+  ok("ni les lire en direct", ((await fan1.client.from("attempt_cheers").select("*")).data ?? []).length === 0);
+  ok("ni modifier un compteur falsifié (colonne inexistante)", !!(await fan1.client.from("attempts").update({ cheer_count: 999 }).eq("id", valId)).error);
+
+  console.log("-- commentaires");
+  const post = (u, id, body) => u.client.rpc("post_comment", { p_attempt: id, p_body: body });
+  ok("commentaire vide refusé", !!(await post(fan1, valId, "")).error && !!(await post(fan1, valId, "  \n​ ")).error);
+  ok("commentaire de 281 caractères refusé", !!(await post(fan1, valId, "a".repeat(281))).error);
+  ok("commentaire de 280 caractères accepté", !(await post(fan1, valId, "b".repeat(280))).error);
+  const cleaned = await post(fan2, valId, "  Bravo​ !\n\n  Continue\t ");
+  const cleanedRow = (await admin.from("attempt_comments").select("body").eq("id", cleaned.data).single()).data;
+  ok("le texte est nettoyé (espaces, retours, caractères invisibles)", !cleaned.error && cleanedRow?.body === "Bravo ! Continue", cleanedRow?.body);
+  ok("commentaire sur une performance en attente refusé", !!(await post(fan1, pendingId, "Allez !")).error);
+  ok("commentaire sur une performance rejetée refusé", !!(await post(fan1, rejId, "Allez !")).error);
+  ok("commentaire sur une performance dont la vidéo est retirée refusé", !!(await post(fan1, remId, "Allez !")).error);
+  ok("un visiteur anonyme ne peut pas commenter", !!(await anon.rpc("post_comment", { p_attempt: valId, p_body: "Hello" })).error);
+  ok("sans pseudo, pas de commentaire", !!(await post(nopseudo, valId, "Hello")).error);
+  ok("le même commentaire répété est refusé (anti-spam)", !!(await post(fan2, valId, "Bravo ! Continue")).error);
+  const mine = await post(fan1, valId, "Belle série !");
+  ok("le propriétaire peut aussi répondre sous sa performance", !(await post(ath, valId, "Merci à tous")).error);
+  const list = (await fan1.client.rpc("list_comments", { p_attempt: valId, p_limit: 50, p_before: null })).data ?? [];
+  ok("la liste renvoie les commentaires visibles, du plus récent au plus ancien, avec pseudo", list.length === 4 && list[0].pseudo === "Athlète" && list[0].id > list[1].id);
+  ok("chaque lecteur sait quels commentaires sont les siens", list.filter((c) => c.mine).length === 2);
+  ok("la liste est paginée (p_before)", ((await fan1.client.rpc("list_comments", { p_attempt: valId, p_limit: 2, p_before: list[1].id })).data ?? []).length === 2);
+  ok("le compteur de commentaires est dérivé du serveur", (await fan1.client.rpc("attempt_social", { p_attempt: valId })).data?.[0]?.comment_count === 4);
+  ok("un visiteur anonyme ne lit aucun commentaire", ((await anon.rpc("list_comments", { p_attempt: valId, p_limit: 50, p_before: null })).data ?? []).length === 0);
+  ok("les tables de commentaires ne sont pas lisibles en direct", ((await fan1.client.from("attempt_comments").select("*")).data ?? []).length === 0 && !!(await fan1.client.from("attempt_comments").insert({ attempt_id: valId, user_id: fan1.id, body: "direct" })).error);
+
+  ok("supprimer le commentaire de quelqu'un d'autre est refusé", !!(await fan2.client.rpc("delete_comment", { p_id: mine.data })).error);
+  ok("signaler son propre commentaire est refusé", !!(await fan1.client.rpc("report_comment", { p_id: mine.data, p_reason: "spam" })).error);
+  ok("un motif de signalement inconnu est refusé", !!(await fan2.client.rpc("report_comment", { p_id: mine.data, p_reason: "nimporte" })).error);
+  ok("signaler le commentaire d'un autre est accepté", !(await fan2.client.rpc("report_comment", { p_id: mine.data, p_reason: "spam" })).error);
+  await fan2.client.rpc("report_comment", { p_id: mine.data, p_reason: "spam" });
+  ok("un double signalement ne compte qu'une fois", (await admin.from("attempt_comments").select("report_count").eq("id", mine.data).single()).data?.report_count === 1);
+  ok("un joueur ne peut pas lister les commentaires signalés", !!(await fan1.client.rpc("list_reported_comments")).error);
+  const reported = (await mod.client.rpc("list_reported_comments")).data ?? [];
+  ok("le modérateur voit le commentaire signalé", reported.some((r) => r.id === mine.data && r.open_reports === 1));
+  ok("un joueur ne peut pas masquer un commentaire", !!(await fan2.client.rpc("moderate_comment", { p_id: mine.data, p_action: "hide", p_reason: "x" })).error);
+  ok("le modérateur masque le commentaire", !(await mod.client.rpc("moderate_comment", { p_id: mine.data, p_action: "hide", p_reason: "Hors sujet" })).error);
+  const afterHide = (await fan2.client.rpc("list_comments", { p_attempt: valId, p_limit: 50, p_before: null })).data ?? [];
+  ok("un commentaire masqué disparaît pour les joueurs et du compteur", !afterHide.some((c) => c.id === mine.data) && (await fan2.client.rpc("attempt_social", { p_attempt: valId })).data?.[0]?.comment_count === 3);
+  ok("le modérateur voit toujours le commentaire masqué", ((await mod.client.rpc("list_comments", { p_attempt: valId, p_limit: 50, p_before: null })).data ?? []).some((c) => c.id === mine.data && c.status === "hidden"));
+  ok("la décision de modération est journalisée", ((await admin.from("comment_moderation_log").select("action").eq("comment_id", mine.data)).data ?? []).some((l) => l.action === "hide"));
+  ok("le modérateur rétablit le commentaire", !(await mod.client.rpc("moderate_comment", { p_id: mine.data, p_action: "restore" })).error && ((await fan2.client.rpc("list_comments", { p_attempt: valId, p_limit: 50, p_before: null })).data ?? []).some((c) => c.id === mine.data));
+  ok("l'auteur supprime son propre commentaire", !(await fan1.client.rpc("delete_comment", { p_id: mine.data })).error);
+  ok("le commentaire supprimé a disparu pour de bon", ((await admin.from("attempt_comments").select("id").eq("id", mine.data)).data ?? []).length === 0);
+  ok("supprimer deux fois est refusé proprement", !!(await fan1.client.rpc("delete_comment", { p_id: mine.data })).error);
+
+  console.log("-- limites et cohérence");
+  const spammer = await makeUser("chatty");
+  await profile(spammer, "Bavard", "Lille", "Hauts-de-France", "France");
+  let limitedAt = 0;
+  for (let i = 1; i <= 22; i += 1) {
+    const r = await post(spammer, valId, `Message numéro ${i}`);
+    if (r.error && /comment_rate_limited/.test(r.error.message)) {
+      limitedAt = i;
+      break;
+    }
+  }
+  ok("au plus 20 commentaires par heure (le 21e est refusé)", limitedAt === 21, `limite atteinte à ${limitedAt}`);
+  ok("aucun effet sur les points de l'athlète", (await pointsOf(ath)) === pointsBefore);
+  const lbAfter = JSON.stringify(((await anon.rpc("leaderboard", { p_format: "pushups_60s", p_scope: "world", p_value: null, p_limit: 200 })).data ?? []).map((r) => [r.user_id, r.best_score, r.rank]));
+  ok("aucun effet sur les classements", lbAfter === lbBefore);
+
+  await moderate(mod, valId, "reject", null, "Revu : exercice non conforme");
+  ok("si la performance est ensuite rejetée, les commentaires ne sont plus lisibles par les joueurs", ((await fan1.client.rpc("list_comments", { p_attempt: valId, p_limit: 50, p_before: null })).data ?? []).length === 0);
+  ok("et on ne peut plus ni encourager ni commenter", !!(await fan1.client.rpc("set_cheer", { p_attempt: valId, p_on: true })).error && !!(await post(fan2, valId, "Encore un mot")).error);
+  ok("mais on peut toujours retirer son encouragement", !(await fan2.client.rpc("set_cheer", { p_attempt: valId, p_on: false })).error);
+}
+
+console.log("\n=== 14. Suppression de compte ===");
+{
+  const vic = await makeUser("victim");
+  const witness = await makeUser("witness");
+  const pend = await makeUser("pendresp");
+  const mod2 = await makeUser("mod2");
+  await admin.from("admin_users").insert({ user_id: mod2.id });
+  await profile(vic, "Victime", "Dijon", "Bourgogne", "France");
+  await profile(witness, "Témoin", "Caen", "Normandie", "France");
+  await profile(pend, "Attente", "Metz", "Grand Est", "France");
+  await profile(mod2, "Modo2", "Paris", "Île-de-France", "France");
+
+  const bytes = Buffer.from("fake-video-bytes");
+  const upload = (u, name) => u.client.storage.from("attempt-videos").upload(`${u.id}/${name}`, bytes, { contentType: "video/mp4" });
+  await upload(vic, `ch-${stamp}.mp4`);
+  await upload(vic, `orphelin-${stamp}.mp4`);
+  await upload(witness, `rep-${stamp}.mp4`);
+  await upload(pend, `rep-${stamp}.mp4`);
+
+  const vicChallenge = (await submit(vic, "pushups_60s", 45, { path: `${vic.id}/ch-${stamp}.mp4`, title: "Défi de la victime" })).data;
+  const witnessResp = (await submit(witness, "pushups_60s", 30, { path: `${witness.id}/rep-${stamp}.mp4`, challengeId: vicChallenge })).data;
+  const witnessOwn = (await submit(witness, "pullups_max", 9)).data;
+  const pendResp = (await submit(pend, "pushups_60s", 25, { path: `${pend.id}/rep-${stamp}.mp4`, challengeId: vicChallenge })).data;
+  for (const [id, score] of [[vicChallenge, 45], [witnessResp, 30], [witnessOwn, 9]]) await moderate(mod, id, "validate", score);
+  await submit(mod2, "pushups_60s", 20).then((r) => moderate(mod, r.data, "validate", 20));
+
+  const extra = (await submit(witness, "pushups_60s", 12)).data;
+  await moderate(mod2, extra, "validate", 12);
+  await vic.client.rpc("set_cheer", { p_attempt: witnessOwn, p_on: true });
+  await vic.client.rpc("post_comment", { p_attempt: witnessOwn, p_body: "Commentaire de la victime" });
+  await witness.client.rpc("post_comment", { p_attempt: vicChallenge, p_body: "Beau défi" });
+  await witness.client.rpc("report_attempt", { p_id: vicChallenge, p_reason: "other", p_details: "test" });
+  const ev = await vic.client.rpc("propose_event", { p_opponent: witness.id, p_format: "pushups_60s", p_scheduled_at: new Date(Date.now() + 86400000 * 3).toISOString(), p_timezone: "Europe/Paris" });
+  await admin.from("payment_events").insert({ event_id: `evt_del_${stamp}`, source: "stripe", user_id: vic.id, event_type: "TEST", event_time: new Date().toISOString(), outcome: "applied", payload: { customer_email: "victime@example.com" } });
+
+  const lbRows = async () => JSON.stringify(((await anon.rpc("leaderboard", { p_format: "pushups_60s", p_scope: "world", p_value: null, p_limit: 200 })).data ?? []).filter((r) => r.user_id !== vic.id).map((r) => [r.user_id, r.best_score]));
+  const lbOther = async () => JSON.stringify(((await anon.rpc("leaderboard", { p_format: "pullups_max", p_scope: "world", p_value: null, p_limit: 200 })).data ?? []).map((r) => [r.user_id, r.best_score]));
+  const witnessPointsBefore = await pointsOf(witness);
+  const lbBeforePush = await lbRows();
+  const lbBeforePull = await lbOther();
+
+  ok("sans connexion, la fonction de suppression est refusée", !!(await anon.rpc("delete_my_account_data")).error);
+
+  // Même orchestration que l'Edge Function delete-account (supabase/functions/delete-account/index.ts), exécutée en local avec les vrais clients.
+  const bucket = admin.storage.from("attempt-videos");
+  const result = await deleteAccount(vic.id, {
+    async listFolder(userId) {
+      const { data, error } = await bucket.list(userId, { limit: 1000 });
+      if (error) throw new Error(error.message);
+      return (data ?? []).filter((f) => f.id).map((f) => `${userId}/${f.name}`);
+    },
+    async removeFiles(paths) {
+      const { error } = await bucket.remove(paths);
+      if (error) throw new Error(error.message);
+    },
+    async deleteData() {
+      const { data, error } = await vic.client.rpc("delete_my_account_data");
+      if (error) throw new Error(error.message);
+      return data ?? [];
+    },
+    async deleteAuthUser(userId) {
+      const { error } = await admin.auth.admin.deleteUser(userId);
+      if (error) throw new Error(error.message);
+    },
+  });
+  ok("la suppression de compte aboutit", result.ok === true, JSON.stringify(result));
+
+  ok("le compte d'authentification n'existe plus", !!(await admin.auth.admin.getUserById(vic.id)).error);
+  const relog = await createClient(URL, ANON, opts).auth.signInWithPassword({ email: vic.email, password: PASSWORD });
+  ok("l'ancien e-mail ne permet plus de se connecter", !!relog.error);
+  ok("le profil a disparu", ((await admin.from("profiles").select("user_id").eq("user_id", vic.id)).data ?? []).length === 0);
+  ok("les performances ont disparu", ((await admin.from("attempts").select("id").eq("user_id", vic.id)).data ?? []).length === 0);
+  ok("les statistiques ont disparu", ((await admin.from("players_stats").select("user_id").eq("user_id", vic.id)).data ?? []).length === 0);
+  ok("ses commentaires et encouragements ont disparu", ((await admin.from("attempt_comments").select("id").eq("user_id", vic.id)).data ?? []).length === 0 && ((await admin.from("attempt_cheers").select("user_id").eq("user_id", vic.id)).data ?? []).length === 0);
+  ok("ses événements de duel ont disparu", ((await admin.from("duel_events").select("id").or(`player_a.eq.${vic.id},player_b.eq.${vic.id}`)).data ?? []).length === 0 && true);
+  const left = await admin.storage.from("attempt-videos").list(vic.id);
+  ok("ses vidéos (rattachées ou orphelines) ont été effacées du stockage", (left.data ?? []).filter((f) => f.id).length === 0);
+  const pe = (await admin.from("payment_events").select("user_id,payload").eq("event_id", `evt_del_${stamp}`).single()).data;
+  ok("l'historique de paiement est conservé mais détaché de la personne", pe?.user_id === null && pe?.payload === null);
+
+  const orphan = (await admin.from("attempts").select("status,challenge_id,decided_score").eq("id", witnessResp).single()).data;
+  ok("la réponse validée d'un autre joueur à son défi est conservée (score intact)", orphan?.status === "validated" && orphan?.decided_score === 30 && orphan?.challenge_id === null);
+  ok("la réponse encore en attente est retirée (plus de défi)", (await admin.from("attempts").select("status").eq("id", pendResp).single()).data?.status === "withdrawn");
+  ok("la vidéo d'un autre joueur n'est pas touchée", ((await admin.storage.from("attempt-videos").list(witness.id)).data ?? []).some((f) => f.name === `rep-${stamp}.mp4`));
+  ok("les points du témoin ne changent pas", (await pointsOf(witness)) === witnessPointsBefore);
+  ok("le classement pompes des autres joueurs est identique", (await lbRows()) === lbBeforePush);
+  ok("le classement tractions est identique", (await lbOther()) === lbBeforePull);
+  ok("les autres joueurs peuvent toujours lire leur profil, leur fil et le détail de leur réponse", !!(await witness.client.from("attempt_feed").select("id,pseudo").eq("id", witnessResp).single()).data && !!(await bob.client.from("attempt_feed").select("id").limit(1)).data);
+  ok("la page d'une performance restante charge toujours (compteurs et commentaires)", !(await witness.client.rpc("attempt_social", { p_attempt: witnessOwn })).error && !(await witness.client.rpc("list_comments", { p_attempt: witnessOwn, p_limit: 50, p_before: null })).error);
+
+  const modRes = await deleteAccount(mod2.id, {
+    listFolder: async () => [],
+    removeFiles: async () => {},
+    deleteData: async () => (await mod2.client.rpc("delete_my_account_data")).data ?? [],
+    deleteAuthUser: async (id) => {
+      const { error } = await admin.auth.admin.deleteUser(id);
+      if (error) throw new Error(error.message);
+    },
+  });
+  ok("un modérateur qui a pris des décisions peut aussi supprimer son compte", modRes.ok === true, JSON.stringify(modRes));
+  ok("le journal de modération reste lisible (décideur anonymisé)", ((await admin.from("moderation_log").select("id").is("moderator_id", null).limit(1)).data ?? []).length > 0);
 }
 
 console.log(`\nRÉSULTAT : ${passed} réussis, ${failures.length} échec(s)`);

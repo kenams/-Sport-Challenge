@@ -11,6 +11,7 @@ import ErrorState from "../components/immortal/ErrorState";
 import EmptyState from "../components/immortal/EmptyState";
 import ActionButton from "../components/immortal/ActionButton";
 import ProfileSetupForm from "../components/immortal/ProfileSetupForm";
+import DeleteAccountFlow from "../components/immortal/DeleteAccountFlow";
 import { COLORS } from "../theme";
 import { ensurePlayer, getMyBest, getMyProfile, getMyStats, isModerator, listMyAttempts } from "../services/api";
 import { FALLBACK_FORMATS, formatLabel } from "../domain/formats";
@@ -44,6 +45,7 @@ export default function ProfileScreen({ navigation }: any) {
   const [moderator, setModerator] = useState(false);
   const [editing, setEditing] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async (mode: "initial" | "refresh" = "initial") => {
     if (mode === "refresh") setRefreshing(true);
@@ -235,10 +237,12 @@ export default function ProfileScreen({ navigation }: any) {
               ) : null}
               <MenuRow icon="crown" label="IMMORTAL Pro" hint="Voir ce que comprend l'offre" onPress={() => navigation.navigate("Pro")} />
               <ActionButton label="Me déconnecter" variant="danger" onPress={signOut} loading={signingOut} />
+              <ActionButton label="Supprimer mon compte" variant="link" onPress={() => setDeleting(true)} accessibilityHint="Supprime définitivement ton compte et tes données" />
             </View>
           </>
         ) : null}
       </ScrollView>
+      <DeleteAccountFlow visible={deleting} onClose={() => setDeleting(false)} onDeleted={() => setDeleting(false)} />
     </ScreenContainer>
   );
 }
