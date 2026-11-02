@@ -1,6 +1,6 @@
 // src/screens/OnboardingScreen.tsx — 3 écrans honnêtes, sans promesse inexistante.
 import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import LogoMark from "../components/LogoMark";
 import ActionButton from "../components/immortal/ActionButton";
 
 const ONBOARDING_KEY = "immortal_onboarding_seen";
+const DEMO_URL = "https://immortal-kah-demo.vercel.app/";
 
 export async function markOnboardingSeen() {
   try {
@@ -58,6 +59,10 @@ export default function OnboardingScreen({ navigation }: any) {
   const slide = SLIDES[index];
   const last = index === SLIDES.length - 1;
 
+  const openDemo = () => {
+    void Linking.openURL(DEMO_URL).catch(() => undefined);
+  };
+
   const finish = async () => {
     await markOnboardingSeen();
     navigation?.replace("Login");
@@ -99,6 +104,7 @@ export default function OnboardingScreen({ navigation }: any) {
           {index > 0 ? <ActionButton label="Retour" variant="ghost" onPress={() => setIndex(index - 1)} style={{ flex: 1 }} /> : null}
           <ActionButton label={last ? "Commencer" : "Suivant"} onPress={() => (last ? finish() : setIndex(index + 1))} style={{ flex: 2 }} />
         </View>
+        <ActionButton label="Voir la démo interactive · sans compte" variant="link" onPress={openDemo} />
       </View>
     </SafeAreaView>
   );
