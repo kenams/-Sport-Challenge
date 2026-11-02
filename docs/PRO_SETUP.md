@@ -1,6 +1,6 @@
 # IMMORTAL Pro — mise en place des abonnements
 
-**État : rien n'est vendable.** Le bouton « S'abonner » est désactivé tant que `EXPO_PUBLIC_IAP_ENABLED` n'est pas `true` et que le parcours n'a pas été testé de bout en bout. Les prix (4,99 €/mois, 39,99 €/an) sont des **hypothèses**.
+**État : rien n'est vendable.** Le bouton « S'abonner » est désactivé tant que `EXPO_PUBLIC_IAP_ENABLED` (boutiques) ou, sur le web, `EXPO_PUBLIC_STRIPE_WEB_ENABLED` n'est pas `true` et que le parcours n'a pas été testé de bout en bout. Les prix (4,99 €/mois, 39,99 €/an) sont des **hypothèses**.
 
 Le Pro ne donne aucun avantage sportif : statistiques avancées, personnalisation de la carte, groupes privés. Jamais de points, de validation prioritaire ni de meilleur classement.
 
@@ -13,7 +13,7 @@ Le Pro ne donne aucun avantage sportif : statistiques avancées, personnalisatio
 1. Comptes développeur Apple et Google Play ; produits `immortal_pro_monthly` et `immortal_pro_annual` dans chaque boutique.
 2. Compte RevenueCat : entitlement `pro`, clés SDK publiques iOS/Android, webhook vers `revenuecat-webhook` avec l'en-tête d'autorisation.
 3. Côté app : `react-native-purchases`, `Purchases.logIn(<id utilisateur Supabase>)`, restauration des achats, nouveau build natif.
-4. Web : le webhook Stripe est écrit et testé en local (voir ci-dessous) ; reste à créer le point d'accès dans le dashboard Stripe, la session de paiement (Checkout) qui pose `metadata.user_id` sur l'abonnement, et un paiement de test en mode test.
+4. Web : webhook, Checkout et portail sont écrits et testés en local (voir ci-dessous) ; reste le déploiement, le point d'accès webhook, le portail et un paiement de test en mode test Stripe.
 5. Déployer : `supabase functions deploy revenuecat-webhook --no-verify-jwt`, secrets via `supabase secrets set` (jamais dans le dépôt).
 6. Achat de test en bac à sable, puis remboursement test, puis seulement activer `EXPO_PUBLIC_IAP_ENABLED`.
 7. Mentions légales, CGV, droit de rétractation et résiliation visibles avant l'achat.
@@ -27,6 +27,29 @@ Le Pro ne donne aucun avantage sportif : statistiques avancées, personnalisatio
 - À vérifier avant ouverture : noms de champs de la version d'API Stripe réellement configurée (la période de l'abonnement est lue sur l'objet ou sur ses lignes), un paiement de test, un remboursement de test.
 - Déploiement : `supabase functions deploy stripe-webhook --no-verify-jwt` ; `supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_...`.
 - Tests : `npx jest src/__tests__/stripeWebhook.test.ts` (signature, correspondance, doublon, désordre, horodatage), `scripts/test-server-rules.mjs` section 12 (apply_entitlement_event et verrous Pro côté base), `scripts/test-edge-functions.mjs` (fonctions réelles dans le runtime Deno).
+
+## Paiement web Stripe : Checkout + portail — écrit, testé en local avec un faux Stripe, NON déployé, NON activé
+- `supabase/functions/create-checkout-session` : exige un joueur connecté, accepte `{plan: "monthly"|"annual"}` uniquement (liste blanche). Les `price_...` viennent des secrets `STRIPE_PRICE_MONTHLY` / `STRIPE_PRICE_ANNUAL`, jamais du client. Refuse (409) si le joueur est déjà Pro. Crée une session `mode=subscription` avec `client_reference_id`, `metadata.user_id` et `subscription_data.metadata.user_id` = id du joueur (c'est ce que lit le webhook), réutilise le client Stripe déjà connu (`payment_events`), sinon préremplit l'e-mail. Retours : `WEB_BASE_URL` + `/Pro?checkout=success|cancel` (https obligatoire, localhost toléré ; aucune URL fournie par le client).
+- `supabase/functions/customer-portal` : session du portail client (changer de carte, résilier) pour un joueur dont un client Stripe est connu ; sinon 409 `no_customer`.
+- Logique pure : `supabase/functions/_shared/billing.ts` (fetch injecté ; la clé n'est ni journalisée ni renvoyée ; erreurs Stripe réduites à `stripe_error`). Tests : `npx jest src/__tests__/billing.test.ts src/__tests__/billingClient.test.ts` et `scripts/test-edge-functions.mjs` (faux Stripe HTTP local, 47 vérifications ; le runtime local doit avoir `STRIPE_API_BASE=http://host.docker.internal:18999`, une fausse `STRIPE_SECRET_KEY`, `STRIPE_PRICE_MONTHLY=price_fake_monthly`, `STRIPE_PRICE_ANNUAL=price_fake_annual`, `WEB_BASE_URL=http://localhost:8099`).
+- Client : `startCheckout(plan)` / `openBillingPortal()` dans `src/services/api.ts` ; écran Pro. Bouton actif SEULEMENT sur le web et si `EXPO_PUBLIC_STRIPE_WEB_ENABLED === "true"` (défaut : désactivé, message « bientôt disponible »). Jamais sur iOS/Android (achats numériques via les boutiques). Au retour de paiement, l'écran ne se fie pas à l'URL : il interroge `is_pro` toutes les 3 s jusqu'à 90 s (« paiement en cours de confirmation » tant que le webhook n'a pas écrit le droit, « confirmé » seulement quand le serveur le dit).
+- Vérifié dans le navigateur (base locale, faux Stripe) : drapeau absent = écran honnête inchangé ; drapeau actif = clic sur « S'abonner » redirige vers l'URL renvoyée par le faux Stripe ; retour `?checkout=success` sans droit = « en cours de confirmation », puis « confirmé » après écriture du droit en base ; « Gérer mon abonnement » visible pour un Pro Stripe.
+- Prix affichés (4,99 €/mois, 39,99 €/an) = **hypothèses** tant que non validées. Le texte de l'écran dit « tu peux résilier depuis cet écran » : vrai seulement une fois le portail activé (étape 5 ci-dessous).
+- **À confirmer avant ouverture (juridique)** : droit de rétractation de 14 jours pour un abonnement numérique (renoncement exprès à recueillir avant paiement si accès immédiat), CGV et mentions visibles avant l'achat, mode de résiliation décrit, TVA. Rien de cela n'est encore dans l'app.
+- Identifiants de prix : lecture automatique du catalogue impossible (connexion MCP Stripe expirée le 02/11). À relever : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/products/prod_VYADBlN3XWKJ9x (mensuel `price_...` = ________ ; annuel `price_...` = ________). En mode test, produits et prix sont distincts du mode live (étape 2).
+
+### Actions du fondateur dans le tableau de bord Stripe (dans cet ordre ; ne jamais coller une clé dans le chat)
+1. **Mode test** : basculer sur « Mode test » : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/test/dashboard
+2. **Produit et prix de test** : le produit du 01/11 est en mode live. Recréer « IMMORTAL Pro » à 4,99 €/mois et 39,99 €/an en mode test : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/test/products. Noter les deux `price_...` de test.
+3. **Clé secrète de test** : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/test/apikeys. Une clé restreinte suffit (écriture « Checkout Sessions » et « Customer portal sessions »). Elle se saisit uniquement dans `supabase secrets set` (étape 7).
+4. **Déployer** (terminal, projet Supabase lié) : `supabase functions deploy create-checkout-session`, `supabase functions deploy customer-portal`, `supabase functions deploy stripe-webhook --no-verify-jwt`.
+5. **Portail client** : activer et enregistrer la configuration (annulation d'abonnement, moyen de paiement, factures) : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/test/settings/billing/portal
+6. **Webhook** (après déploiement) : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/test/workbench/webhooks → point d'accès `https://<ref-projet>.supabase.co/functions/v1/stripe-webhook`, événements EXACTEMENT : `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `charge.refunded`. Copier le secret de signature `whsec_...`.
+7. **Secrets** (terminal) : `supabase secrets set STRIPE_SECRET_KEY=<clé test> STRIPE_PRICE_MONTHLY=<price test mensuel> STRIPE_PRICE_ANNUAL=<price test annuel> WEB_BASE_URL=https://<domaine web de l'app> STRIPE_WEBHOOK_SECRET=<whsec test> STRIPE_ALLOW_TEST_MODE=true`. Ne jamais définir `STRIPE_API_BASE`.
+8. **Activer le bouton** sur une préversion seulement : `EXPO_PUBLIC_STRIPE_WEB_ENABLED=true` dans le build web de test (pas en production).
+9. **Paiement de test** : carte `4242 4242 4242 4242` (date future, CVC et code postal quelconques). Vérifier : « en cours de confirmation » puis « Pro actif », webhook « Réussi » dans Stripe, `entitlements` = `pro/active/stripe`, « Gérer mon abonnement » ouvre le portail.
+10. **Tests complémentaires** : résilier depuis le portail (« Pro actif, non renouvelé ») ; carte `4000 0000 0000 0341` (échec de paiement) ; **remboursement test** : https://dashboard.stripe.com/acct_1TDQW0GSZgm5QCNL/test/payments → le Pro est retiré.
+11. **Seulement ensuite, bascule en live** : refaire 3 à 7 en mode live (clé live, `price_...` live de `prod_VYADBlN3XWKJ9x`, nouveau webhook live, nouveau `whsec_`), retirer `STRIPE_ALLOW_TEST_MODE`, valider avec un paiement réel que vous remboursez vous-même, puis activer le drapeau en production. Avant : CGV, rétractation et mentions légales en place.
 
 ## Honnêteté de l'écran Pro
 Le bouton d'abonnement reste désactivé quelle que soit la valeur de `EXPO_PUBLIC_IAP_ENABLED` tant qu'aucun module d'achat n'est branché (`subscribeCta`). Les fonctions Pro sont verrouillées côté serveur (`is_pro`) et ne s'ouvrent que sur un événement de paiement valide.

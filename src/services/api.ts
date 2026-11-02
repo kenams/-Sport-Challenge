@@ -1,4 +1,5 @@
 // Accès aux données IMMORTAL. Toute décision (validation, points, droits) est prise par le serveur : le client lit et demande.
+import { billingErrorMessage, type CheckoutPlan } from "../screens/helpers/billing";
 import { supabase } from "../supabase";
 import type {
   Attempt,
@@ -318,6 +319,27 @@ export async function isPro(): Promise<boolean> {
   if (error) throw new Error(describeError(error));
   return data === true;
 }
+
+// ---------- Paiement web (Stripe) ----------
+
+async function callBilling(name: "create-checkout-session" | "customer-portal", body: Record<string, unknown>): Promise<ApiResult<string>> {
+  try {
+    const { data, error } = await supabase.functions.invoke(name, { body });
+    if (!error && typeof data?.url === "string") return { data: data.url, error: null };
+    let code: unknown = data?.error;
+    const context = (error as { context?: Response } | null)?.context;
+    if (!code && context && typeof context.json === "function") code = (await context.json().catch(() => null))?.error;
+    return { data: null, error: billingErrorMessage(code) };
+  } catch {
+    return { data: null, error: billingErrorMessage(null) };
+  }
+}
+
+/** Demande au serveur une session de paiement Stripe (web). Renvoie l'URL de la page de paiement ; rien n'est débité ici. */
+export const startCheckout = (plan: CheckoutPlan) => callBilling("create-checkout-session", { plan });
+
+/** Demande au serveur l'URL du portail client Stripe (gérer le moyen de paiement, résilier). */
+export const openBillingPortal = () => callBilling("customer-portal", {});
 
 export const myProgress = (format: FormatKey) =>
   wrap<Array<{ week_start: string; best_score: number; validated_count: number }>>(() => supabase.rpc("my_progress", { p_format: format }));

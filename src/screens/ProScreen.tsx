@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import ErrorState from "../components/immortal/ErrorState";
 import EventAction from "../components/immortal/EventAction";
 import EventAuthPrompt from "../components/immortal/EventAuthPrompt";
 import ProBlock from "../components/immortal/ProBlock";
 import { COLORS, TYPO } from "../theme";
-import { createGroup, groupLeaderboard, getMyEntitlement, getMyProfile, isPro, joinGroup, myGroups, myProgress, setCardTheme } from "../services/api";
+import { createGroup, groupLeaderboard, getMyEntitlement, getMyProfile, isPro, joinGroup, myGroups, myProgress, openBillingPortal, setCardTheme, startCheckout } from "../services/api";
 import { FALLBACK_FORMATS } from "../domain/formats";
 import type { Entitlement, FormatKey } from "../domain/types";
 import { CARD_THEMES, barRatio, describeEntitlement, subscribeCta, type CardThemeKey } from "./helpers/proStatus";
 import { useSessionUser } from "./helpers/useSessionUser";
+import { CONFIRM_POLL_MS, CONFIRM_TIMEOUT_MS, PLAN_LABELS, canManageOnWeb, confirmationView, parseCheckoutReturn, webSubscribe, type CheckoutPlan, type CheckoutReturn } from "./helpers/billing";
 
 type Progress = Array<{ week_start: string; best_score: number; validated_count: number }>;
 type Group = { id: string; name: string; invite_code: string; owner_id: string };
@@ -35,6 +36,13 @@ export default function ProScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
   const [iapNote, setIapNote] = useState(false);
   const cta = subscribeCta(process.env.EXPO_PUBLIC_IAP_ENABLED);
+  const stripeFlag = process.env.EXPO_PUBLIC_STRIPE_WEB_ENABLED;
+  const web = webSubscribe(Platform.OS, stripeFlag);
+  const [returned] = useState<CheckoutReturn>(() => (Platform.OS === "web" && typeof window !== "undefined" ? parseCheckoutReturn(window.location.search) : null));
+  const [startedAt] = useState(() => Date.now());
+  const [elapsed, setElapsed] = useState(0);
+  const [billingBusy, setBillingBusy] = useState<CheckoutPlan | "portal" | null>(null);
+  const [billingMsg, setBillingMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,6 +61,34 @@ export default function ProScreen({ navigation }: any) {
     if (ready) load();
   }, [ready, uid, load]);
 
+  // Retour de paiement : on interroge le serveur (jamais l'URL) jusqu'à ce que le droit soit écrit par la confirmation de paiement.
+  useEffect(() => {
+    if (returned !== "success" || !uid || pro || elapsed >= CONFIRM_TIMEOUT_MS) return;
+    const timer = setInterval(async () => {
+      try {
+        const [ent, active] = await Promise.all([getMyEntitlement(), isPro()]);
+        setEntitlement(ent);
+        setPro(active);
+      } catch {
+        /* nouvelle tentative au prochain tour */
+      }
+      setElapsed(Date.now() - startedAt);
+    }, CONFIRM_POLL_MS);
+    return () => clearInterval(timer);
+  }, [returned, uid, pro, elapsed, startedAt]);
+
+  const goTo = async (action: Promise<{ data: string | null; error: string | null }>, busy: CheckoutPlan | "portal") => {
+    setBillingBusy(busy);
+    setBillingMsg(null);
+    const res = await action;
+    if (res.error || !res.data) {
+      setBillingBusy(null);
+      setBillingMsg(res.error ?? "Impossible d'ouvrir le paiement. Aucun paiement n'a été effectué.");
+      return;
+    }
+    if (typeof window !== "undefined") window.location.assign(res.data);
+  };
+
   if (!ready || loading) {
     return (
       <ScreenContainer>
@@ -69,6 +105,8 @@ export default function ProScreen({ navigation }: any) {
   }
 
   const state = describeEntitlement(entitlement, pro);
+  const confirmation = confirmationView(returned, pro, elapsed);
+  const canManage = canManageOnWeb(Platform.OS, stripeFlag, entitlement.source, pro);
 
   return (
     <ScreenContainer>
@@ -83,6 +121,20 @@ export default function ProScreen({ navigation }: any) {
           <Text style={[styles.state, { color: TONE_COLOR[state.tone] }]}>{state.label}</Text>
           <Text style={styles.sub}>{state.detail}</Text>
         </View>
+
+        {confirmation.kind !== "none" ? (
+          <View style={styles.card} accessibilityLiveRegion="polite" testID="checkout-return">
+            {confirmation.kind === "confirming" ? <ActivityIndicator color={COLORS.primary} accessibilityLabel="Confirmation en cours" /> : null}
+            <Text style={confirmation.kind === "confirmed" ? styles.ok : confirmation.kind === "confirming" ? styles.free : styles.warn}>{confirmation.text}</Text>
+          </View>
+        ) : null}
+
+        {canManage ? (
+          <View style={styles.card}>
+            <EventAction label="Gérer mon abonnement" variant="ghost" busy={billingBusy === "portal"} onPress={() => goTo(openBillingPortal(), "portal")} accessibilityHint="Ouvre le portail sécurisé de Stripe pour changer de moyen de paiement ou résilier" />
+            {billingMsg ? <Text style={styles.err}>{billingMsg}</Text> : null}
+          </View>
+        ) : null}
 
         {ready && !uid ? (
           <EventAuthPrompt reason="Connecte-toi pour voir ton abonnement et utiliser les groupes." onLogin={() => navigation.navigate("Login")} onRegister={() => navigation.navigate("Register")} />
@@ -125,10 +177,27 @@ export default function ProScreen({ navigation }: any) {
         </ProBlock>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Tarifs envisagés</Text>
-          <Text style={styles.sub}>Hypothèse de départ, non facturable aujourd'hui : 4,99 € par mois ou 39,99 € par an. Rien n'est vendu pour le moment.</Text>
-          <EventAction label={cta.label} onPress={() => setIapNote(true)} disabled={cta.disabled} />
-          {iapNote ? <Text style={styles.warn}>L'achat n'est pas encore disponible dans cette version : aucun paiement n'a été effectué.</Text> : null}
+          <Text style={styles.cardTitle}>{web.available && !pro ? "S'abonner à Pro" : "Tarifs envisagés"}</Text>
+          {web.available && !pro ? (
+            <>
+              <Text style={styles.sub}>Tu seras redirigé vers la page de paiement sécurisée de Stripe. Tu peux résilier depuis cet écran. Le paiement n'achète aucun avantage sportif.</Text>
+              {uid ? (
+                <>
+                  <EventAction label={PLAN_LABELS.monthly} onPress={() => goTo(startCheckout("monthly"), "monthly")} busy={billingBusy === "monthly"} disabled={billingBusy !== null} />
+                  <EventAction label={PLAN_LABELS.annual} variant="ghost" onPress={() => goTo(startCheckout("annual"), "annual")} busy={billingBusy === "annual"} disabled={billingBusy !== null} />
+                </>
+              ) : (
+                <Text style={styles.lock}>Connecte-toi pour t'abonner.</Text>
+              )}
+              {billingMsg ? <Text style={styles.err} accessibilityLiveRegion="polite">{billingMsg}</Text> : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.sub}>Hypothèse de départ, non facturable aujourd'hui : 4,99 € par mois ou 39,99 € par an. Rien n'est vendu pour le moment.</Text>
+              <EventAction label={cta.label} onPress={() => setIapNote(true)} disabled={cta.disabled} />
+              {iapNote ? <Text style={styles.warn}>L'achat n'est pas encore disponible dans cette version : aucun paiement n'a été effectué.</Text> : null}
+            </>
+          )}
         </View>
       </ScrollView>
     </ScreenContainer>

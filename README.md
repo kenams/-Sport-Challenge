@@ -13,7 +13,7 @@ Inscription → choix de l'épreuve → lancer un défi (vidéo) → inviter un 
 - Droits Pro écrits uniquement côté serveur (`apply_entitlement_event`).
 - Suppression de compte (migration `20261102140000`, Edge Function `delete-account`) : profil, performances et vidéos effacés, performances des autres intactes.
 - « Encourager » (un par joueur, retirable) et commentaires de 280 caractères au plus, sur performances validées seulement (migration `20261102150000`) : limites de débit, signalement, masquage par la modération, aucun effet sur points ni classements.
-- Webhook Stripe écrit et testé en local (`supabase/functions/stripe-webhook`), non déployé.
+- Paiement web Stripe écrit et testé en local, **non déployé, non activé** : webhook (`stripe-webhook`), `create-checkout-session`, `customer-portal`. Bouton « S'abonner » web inactif tant que `EXPO_PUBLIC_STRIPE_WEB_ENABLED` n'est pas `true` (jamais sur iOS/Android). Procédure : `docs/PRO_SETUP.md`.
 
 ## Lancer en local
 ```
@@ -27,8 +27,8 @@ npx tsc --noEmit && npx jest
 ```
 
 ## État honnête
-- **Fait et testé** : règles serveur (210 vérifications), fonctions Edge (26 vérifications), logique des écrans (jest), typage.
-- **Non fait** : abonnement Pro (rien n'est achetable ; le webhook Stripe est prêt mais non déployé), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
+- **Fait et testé** : règles serveur (210 vérifications), fonctions Edge (47 vérifications, avec faux Stripe local), logique des écrans (jest), typage.
+- **Non fait** : abonnement Pro (rien n'est achetable ; le paiement web Stripe est prêt mais non déployé ni testé en mode test Stripe), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
 - La migration n'est pas appliquée à la base de production ; à faire seulement après sauvegarde et accord.
 
 Voir `docs/PRO_SETUP.md` (abonnements) et `docs/COSTS.md` (coûts).

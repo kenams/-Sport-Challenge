@@ -1,8 +1,12 @@
-// Teste de bout en bout les Edge Functions delete-account et stripe-webhook, servies en LOCAL (runtime Deno réel).
+// Teste de bout en bout les Edge Functions delete-account, stripe-webhook, create-checkout-session et customer-portal, servies en LOCAL (runtime Deno réel).
 // Usage : SUPABASE_URL=http://127.0.0.1:56321 SUPABASE_ANON_KEY=... SUPABASE_SERVICE_ROLE_KEY=... EDGE_URL=http://127.0.0.1:18181 STRIPE_WEBHOOK_SECRET=whsec_localtest node scripts/test-edge-functions.mjs
+// Les fonctions de facturation parlent à un FAUX Stripe local (serveur HTTP de ce script, port STRIPE_FAKE_PORT, défaut 18999) : le runtime doit avoir
+// STRIPE_API_BASE=http://host.docker.internal:18999, STRIPE_SECRET_KEY=<clé factice>, STRIPE_PRICE_MONTHLY=price_fake_monthly, STRIPE_PRICE_ANNUAL=price_fake_annual,
+// WEB_BASE_URL=http://localhost:8099 ; FAKE_STRIPE_KEY (ce script) doit valoir STRIPE_SECRET_KEY. Aucun appel vers le vrai Stripe, aucun paiement.
 // Le runtime est lancé comme décrit dans docs/PRO_SETUP.md (section « Tester les fonctions en local »). Base locale uniquement.
 import { createClient } from "@supabase/supabase-js";
 import { createHmac } from "node:crypto";
+import { createServer } from "node:http";
 
 const URL = process.env.SUPABASE_URL;
 const ANON = process.env.SUPABASE_ANON_KEY;
@@ -13,6 +17,26 @@ if (!URL || !ANON || !SERVICE || !EDGE || !/127\.0\.0\.1|localhost/.test(URL) ||
   console.error("Refus : base et runtime locaux uniquement (SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, EDGE_URL).");
   process.exit(2);
 }
+const FAKE_PORT = Number(process.env.STRIPE_FAKE_PORT ?? 18999);
+const FAKE_KEY = process.env.FAKE_STRIPE_KEY ?? "fake_local_key_not_a_real_secret";
+const fake = { requests: [], failNext: false };
+const fakeServer = createServer((req, res) => {
+  let raw = "";
+  req.on("data", (c) => (raw += c));
+  req.on("end", () => {
+    const form = new URLSearchParams(raw);
+    fake.requests.push({ path: req.url, auth: req.headers.authorization, form });
+    if (fake.failNext) {
+      fake.failNext = false;
+      res.writeHead(402, { "Content-Type": "application/json" });
+      return res.end(JSON.stringify({ error: { type: "card_error", code: "boom", message: `secret ${FAKE_KEY} fuite` } }));
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    const url = req.url.includes("billing_portal") ? `http://localhost:${FAKE_PORT}/fake-portal/bps_1` : `http://localhost:${FAKE_PORT}/fake-checkout/cs_test_fake_1`;
+    res.end(JSON.stringify({ id: "fake_1", url }));
+  });
+});
+await new Promise((resolve) => fakeServer.listen(FAKE_PORT, "0.0.0.0", resolve));
 const opts = { auth: { persistSession: false, autoRefreshToken: false } };
 const admin = createClient(URL, SERVICE, opts);
 const stamp = Date.now();
@@ -99,6 +123,30 @@ console.log("\n=== stripe-webhook (Edge Function réelle) ===");
   const idp = (n) => `evt_edge_${stamp}_${n}`;
 
   ok("gratuit au départ", !(await isPro()));
+
+  console.log("\n--- facturation (faux Stripe local) ---");
+  const nocust = await makeUser("edgenocust");
+  ok("checkout sans jeton : 401", (await call("create-checkout-session", { body: { plan: "monthly" } })).status === 401);
+  ok("checkout avec la clé publique seule : 401", (await call("create-checkout-session", { token: ANON, body: { plan: "monthly" } })).status === 401);
+  ok("checkout corps invalide : 400", (await call("create-checkout-session", { token: user.token, raw: "pas du json" })).status === 400);
+  for (const plan of ["weekly", "price_fake_monthly", undefined]) ok(`checkout plan refusé (${plan}) : 400`, (await call("create-checkout-session", { token: user.token, body: { plan } })).status === 400);
+  ok("portail sans jeton : 401", (await call("customer-portal", {})).status === 401);
+  ok("portail sans client Stripe connu : 409 no_customer", (await call("customer-portal", { token: nocust.token, body: {} })).json?.error === "no_customer");
+  ok("aucune requête n'est partie vers Stripe pour ces refus", fake.requests.length === 0, `n=${fake.requests.length}`);
+
+  const co = await call("create-checkout-session", { token: user.token, body: { plan: "annual" } });
+  ok("checkout annuel : 200 avec l'URL du faux Stripe", co.status === 200 && /fake-checkout\/cs_test_fake_1/.test(co.json?.url ?? ""), JSON.stringify(co));
+  const sent = fake.requests.at(-1);
+  ok("requête Stripe : chemin, clé en Bearer, mode subscription", sent?.path === "/v1/checkout/sessions" && sent.auth === `Bearer ${FAKE_KEY}` && sent.form.get("mode") === "subscription");
+  ok("requête Stripe : prix annuel venant du serveur", sent?.form.get("line_items[0][price]") === "price_fake_annual");
+  ok("requête Stripe : user_id sur l'abonnement, la session et client_reference_id", sent?.form.get("subscription_data[metadata][user_id]") === user.id && sent.form.get("client_reference_id") === user.id && sent.form.get("metadata[user_id]") === user.id);
+  ok("requête Stripe : retours sur l'origine WEB_BASE_URL, e-mail préremplie", /^http:\/\/localhost:8099\/Pro\?checkout=(success|cancel)$/.test(sent?.form.get("success_url") ?? "") && sent.form.get("customer_email") === user.email);
+  ok("l'URL de retour réussie n'accorde rien : toujours gratuit", !(await isPro()));
+
+  fake.failNext = true;
+  const bad = await call("create-checkout-session", { token: user.token, body: { plan: "monthly" } });
+  ok("Stripe en erreur : 502 propre, sans fuite de la clé ni du message", bad.status === 502 && bad.json?.error === "stripe_error" && !JSON.stringify(bad).includes(FAKE_KEY), JSON.stringify(bad));
+
   ok("événement sans signature : 400", (await call("stripe-webhook", { body: sub(idp(0)) })).status === 400);
   ok("mauvais secret : 400", (await send(sub(idp(0)), { secret: "whsec_autre" })).status === 400);
   ok("corps modifié après signature : 400", (await send(sub(idp(0)), { tamper: true })).status === 400);
@@ -113,17 +161,34 @@ console.log("\n=== stripe-webhook (Edge Function réelle) ===");
   const refund = await send({ id: idp(3), type: "charge.refunded", created: now + 60, livemode: false, data: { object: { id: "ch_x", customer: `cus_${stamp}`, refunded: true } } }, { t: now });
   ok("remboursement total (joueur retrouvé par l'identifiant client) : appliqué", refund.json?.outcome === "applied", JSON.stringify(refund.json));
   ok("le Pro est retiré après remboursement", !(await isPro()));
+  const reCheckout = await call("create-checkout-session", { token: user.token, body: { plan: "monthly" } });
+  const reSent = fake.requests.at(-1);
+  ok("après remboursement : nouveau checkout autorisé, client Stripe connu réutilisé", reCheckout.status === 200 && reSent?.form.get("customer") === `cus_${stamp}` && !reSent.form.has("customer_email"), JSON.stringify(reCheckout));
+  const again = await send(sub(idp(6), {}, now + 300));
+  ok("nouvel abonnement signé : appliqué, Pro de nouveau", again.json?.outcome === "applied" && (await isPro()), JSON.stringify(again.json));
+  const before = fake.requests.length;
+  const dup = await call("create-checkout-session", { token: user.token, body: { plan: "monthly" } });
+  ok("déjà Pro : 409 already_pro, Stripe non appelé", dup.status === 409 && dup.json?.error === "already_pro" && fake.requests.length === before, JSON.stringify(dup));
+  const portal = await call("customer-portal", { token: user.token, body: {} });
+  const psent = fake.requests.at(-1);
+  ok("portail : 200, client connu, retour sur la même origine", portal.status === 200 && /fake-portal/.test(portal.json?.url ?? "") && psent?.path === "/v1/billing_portal/sessions" && psent.form.get("customer") === `cus_${stamp}` && psent.form.get("return_url") === "http://localhost:8099/Pro?portal=return", JSON.stringify(portal));
+  fake.failNext = true;
+  const pbad = await call("customer-portal", { token: user.token, body: {} });
+  ok("portail, Stripe en erreur : 502 propre sans fuite", pbad.status === 502 && !JSON.stringify(pbad).includes(FAKE_KEY));
+  await admin.auth.admin.deleteUser(nocust.id);
+
   const unknown = await send({ id: idp(4), type: "charge.refunded", created: now + 120, livemode: false, data: { object: { id: "ch_y", customer: "cus_inconnu", refunded: true } } });
   ok("client inconnu : ignoré avec 200 (Stripe ne réessaie pas)", unknown.status === 200 && !!unknown.json?.ignored);
   ok("événement hors périmètre : ignoré avec 200", (await send({ id: idp(5), type: "customer.created", created: now, livemode: false, data: { object: {} } })).json?.ignored !== undefined);
   const row = (await admin.from("payment_events").select("event_id").like("event_id", `evt_edge_${stamp}_%`)).data ?? [];
-  ok("seuls les événements signés et acceptés sont journalisés", row.length === 3, `lignes=${row.length}`);
+  ok("seuls les événements signés et acceptés sont journalisés", row.length === 4, `lignes=${row.length}`);
   await admin.from("payment_events").delete().like("event_id", `evt_edge_${stamp}_%`);
   await admin.from("entitlements").delete().eq("user_id", user.id);
   await admin.auth.admin.deleteUser(user.id);
 }
 
 console.log(`\nRÉSULTAT : ${passed} réussis, ${failures.length} échec(s)`);
+fakeServer.close();
 if (failures.length) {
   console.log("Échecs :\n- " + failures.join("\n- "));
   process.exit(1);

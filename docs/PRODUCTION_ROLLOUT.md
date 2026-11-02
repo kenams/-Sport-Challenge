@@ -29,9 +29,13 @@ Après chaque fichier : `select * from supabase_migrations.schema_migrations ord
 supabase functions deploy delete-account   # (JWT requis)
 supabase functions deploy revenuecat-webhook --no-verify-jwt
 supabase functions deploy stripe-webhook --no-verify-jwt
+supabase functions deploy create-checkout-session   # (JWT requis) paiement web Stripe
+supabase functions deploy customer-portal           # (JWT requis) portail client Stripe
 supabase secrets set REVENUECAT_WEBHOOK_AUTH=<secret> STRIPE_WEBHOOK_SECRET=<whsec_...>
 ```
-Ne déployer revenuecat/stripe que lorsque les ventes sont préparées (voir `docs/PRO_SETUP.md`).
+Secrets de facturation web (mode TEST d'abord, jamais dans le chat ni le dépôt) : `supabase secrets set STRIPE_SECRET_KEY=... STRIPE_PRICE_MONTHLY=price_... STRIPE_PRICE_ANNUAL=price_... WEB_BASE_URL=https://<domaine de l'app>` (liste complète et ordre dans `docs/PRO_SETUP.md`). Ne jamais définir `STRIPE_API_BASE` en production (réservé au faux Stripe local).
+
+Ne déployer revenuecat/stripe/create-checkout-session/customer-portal que lorsque les ventes sont préparées (voir `docs/PRO_SETUP.md`).
 
 ## 5. Application
 - Variables : `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_WEB_BASE_URL` (liens publics de duel). Pas de `EXPO_PUBLIC_IAP_ENABLED` tant que le paiement n'est pas testé.
