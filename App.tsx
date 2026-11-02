@@ -45,18 +45,18 @@ function CreateButton({ onPress }: { onPress: () => void }) {
         width: 52,
         height: 52,
         borderRadius: 26,
-        backgroundColor: "COLORS.primary",
+        backgroundColor: COLORS.primary,
         alignItems: "center",
         justifyContent: "center",
         marginBottom: 8,
-        shadowColor: "COLORS.primary",
+        shadowColor: COLORS.primary,
         shadowOpacity: 0.5,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
         elevation: 8,
       }}
     >
-      <FontAwesome5 name="plus" size={20} color="COLORS.background" />
+      <FontAwesome5 name="plus" size={20} color=COLORS.background />
     </TouchableOpacity>
   );
 }
@@ -71,16 +71,16 @@ function MainTabs({ navigation }: any) {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: "COLORS.background",
-          borderTopColor: "COLORS.border",
+          backgroundColor: COLORS.background,
+          borderTopColor: COLORS.border,
           borderTopWidth: 1,
           height: tabBarHeight,
           paddingBottom: Math.max(bottomInset, 8),
           paddingTop: 6,
         },
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: "COLORS.primary",
-        tabBarInactiveTintColor: "COLORS.textMuted",
+        tabBarActiveTintColor: COLORS.primary,
+        tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
       }}
     >
@@ -167,10 +167,10 @@ export default function App() {
 
   if (initializing) {
     return (
-      <View style={{ flex: 1, backgroundColor: "COLORS.background", justifyContent: "center", alignItems: "center" }}>
+      <View style={{ flex: 1, backgroundColor: COLORS.background, justifyContent: "center", alignItems: "center" }}>
         <Image source={logoSource} style={{ width: 120, height: 120, marginBottom: 16 }} resizeMode="contain" />
-        <Text style={{ fontSize: 20, fontWeight: "900", color: "COLORS.primary", letterSpacing: 2, marginBottom: 8 }}>IMMORTAL</Text>
-        <ActivityIndicator size="large" color="COLORS.primary" />
+        <Text style={{ fontSize: 20, fontWeight: "900", color: COLORS.primary, letterSpacing: 2, marginBottom: 8 }}>IMMORTAL</Text>
+        <ActivityIndicator size="large" color=COLORS.primary />
       </View>
     );
   }
