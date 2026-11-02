@@ -173,6 +173,58 @@ export async function searchPlayers(query: string): Promise<ApiResult<Array<{ us
   return { data: profiles.data.map((p) => ({ ...p, level: levels.get(p.user_id) ?? null })), error: null };
 }
 
+
+export type CommunityActivity = {
+  id: string;
+  user_id: string;
+  pseudo: string | null;
+  avatar_url: string | null;
+  kind: "challenge" | "response";
+  format_key: FormatKey;
+  score: number | null;
+  created_at: string;
+  opponent_pseudo: string | null;
+  beat_opponent: boolean;
+};
+
+export async function listCommunityActivity(limit = 12): Promise<ApiResult<CommunityActivity[]>> {
+  const recent = await wrap<Array<{
+    id: string; user_id: string; pseudo: string | null; avatar_url: string | null;
+    kind: "challenge" | "response"; challenge_id: string | null; format_key: FormatKey;
+    decided_score: number | null; created_at: string;
+  }>>(() => supabase.from("attempt_feed")
+    .select("id,user_id,pseudo,avatar_url,kind,challenge_id,format_key,decided_score,created_at")
+    .eq("status", "validated")
+    .eq("video_removed", false)
+    .order("created_at", { ascending: false })
+    .limit(limit));
+  if (recent.error || !recent.data) return { data: null, error: recent.error };
+  const challengeIds = [...new Set(recent.data.filter((item) => item.kind === "response" && item.challenge_id).map((item) => item.challenge_id!))];
+  let parents: Array<{ id: string; pseudo: string | null; decided_score: number | null }> = [];
+  if (challengeIds.length) {
+    const parentResult = await wrap<typeof parents>(() => supabase.from("attempt_feed")
+      .select("id,pseudo,decided_score")
+      .in("id", challengeIds)
+      .eq("status", "validated")
+      .eq("video_removed", false));
+    if (parentResult.error) return { data: null, error: parentResult.error };
+    parents = parentResult.data ?? [];
+  }
+  const parentMap = new Map(parents.map((item) => [item.id, item]));
+  return {
+    data: recent.data.map((item) => {
+      const parent = item.challenge_id ? parentMap.get(item.challenge_id) : null;
+      const beat = item.kind === "response" && parent?.decided_score != null && item.decided_score != null && item.decided_score > parent.decided_score;
+      return {
+        id: item.id, user_id: item.user_id, pseudo: item.pseudo, avatar_url: item.avatar_url,
+        kind: item.kind, format_key: item.format_key, score: item.decided_score,
+        created_at: item.created_at, opponent_pseudo: parent?.pseudo ?? null, beat_opponent: beat,
+      };
+    }),
+    error: null,
+  };
+}
+
 // ---------- Formats ----------
 
 export async function listFormats(): Promise<ChallengeFormat[]> {
