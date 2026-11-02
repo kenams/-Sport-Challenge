@@ -4,6 +4,8 @@ import { useNavigation } from "@react-navigation/native";
 import ArenaSimulationScreen from "./ArenaSimulationScreen";
 import ScreenContainer from "../components/ScreenContainer";
 import AttemptCard from "../components/immortal/AttemptCard";
+import LeagueProgressCard from "../components/LeagueProgressCard";
+import CommunityActivityFeed from "../components/CommunityActivityFeed";
 import EmptyState from "../components/immortal/EmptyState";
 import ErrorState from "../components/immortal/ErrorState";
 import { ActionButton } from "../components/immortal/AttemptFormParts";
@@ -90,6 +92,7 @@ function RealChallengesScreen({ onSimulate }: { onSimulate: () => void }) {
 
   const header = (
     <View style={styles.header}>
+      <LeagueProgressCard onPress={() => navigation.navigate("Profil")} />
       <View style={{ gap: 4 }}>
         <Text style={styles.title} accessibilityRole="header">
           Défis
@@ -108,6 +111,7 @@ function RealChallengesScreen({ onSimulate }: { onSimulate: () => void }) {
 
       {__DEV__ ? <ActionButton label="Ouvrir la simulation vivante" variant="ghost" onPress={onSimulate} /> : null}
       <ActionButton label="Lancer un défi" onPress={() => create()} />
+      <CommunityActivityFeed />
 
       <View style={styles.filters} accessibilityRole="tablist">
         {FEED_FILTERS.map((entry) => {
