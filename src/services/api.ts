@@ -41,6 +41,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   reason_required: "Un motif est obligatoire.",
   invalid_pseudo: "Le pseudo doit faire entre 2 et 24 caractères.",
   level_gap_too_large: "Écart de niveau trop important : les défis directs sont limités à 10 niveaux d’écart.",
+  invalid_avatar: "Choisis un avatar de la galerie IMMORTAL.",
   invalid_opponent: "Adversaire invalide.",
   opponent_not_found: "Adversaire introuvable.",
   date_in_past: "La date doit être dans le futur.",
