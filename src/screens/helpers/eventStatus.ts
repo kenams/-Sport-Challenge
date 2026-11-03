@@ -9,6 +9,7 @@ export const EVENT_STATUS_INFO: Record<EventStatus, { label: string; tone: Event
   live: { label: "En cours", tone: "success", help: "Le duel a commencé." },
   finished: { label: "Terminé", tone: "muted", help: "Le duel est terminé." },
   cancelled: { label: "Annulé", tone: "danger", help: "Le duel a été annulé." },
+  expired: { label: "Expiré", tone: "muted", help: "L'invitation n'a pas reçu de réponse sous 48 heures. Aucune défaite ni perte de points." },
 };
 
 export function eventStatusInfo(status: string) {
@@ -35,6 +36,8 @@ export function posterBanner(status: EventStatus): string {
       return "Terminé";
     case "cancelled":
       return "Annulé";
+    case "expired":
+      return "Invitation expirée";
     default:
       return "";
   }
@@ -52,6 +55,7 @@ export function canRespond(event: DuelEvent, uid: string | null): boolean {
   const role = roleOf(event, uid);
   if (role === "visitor") return false;
   if (event.status !== "proposed" && event.status !== "accepted") return false;
+  if (event.proposal_expires_at && Date.parse(event.proposal_expires_at) <= Date.now()) return false;
   const mine = role === "player_a" ? event.accepted_by_a : event.accepted_by_b;
   return !mine;
 }
@@ -69,6 +73,7 @@ export function canSupport(status: EventStatus): boolean {
 export function supportClosedReason(status: EventStatus): string {
   if (status === "proposed" || status === "accepted") return "Le soutien ouvre quand les deux joueurs ont accepté le duel.";
   if (status === "cancelled") return "Ce duel est annulé.";
+  if (status === "expired") return "L'invitation a expiré sans défaite ni perte de points.";
   if (status === "finished") return "Ce duel est terminé.";
   if (status === "live") return "Le soutien n'est plus modifiable pendant le duel.";
   return "";

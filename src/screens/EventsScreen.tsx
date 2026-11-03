@@ -8,7 +8,7 @@ import EventAction from "../components/immortal/EventAction";
 import EventStatusBadge from "../components/immortal/EventStatusBadge";
 import { COLORS, TYPO } from "../theme";
 import { listUpcomingEvents } from "../services/api";
-import { formatLabel, formatTimeFr } from "../domain/formats";
+import { deviceTimezone, formatLabel, formatTimeFr } from "../domain/formats";
 import type { DuelEvent } from "../domain/types";
 import { loadPlayers, playerName, playerTerritory, type PlayerInfo } from "./helpers/eventProfiles";
 import { eventStatusInfo } from "./helpers/eventStatus";
@@ -44,6 +44,7 @@ export default function EventsScreen({ navigation }: any) {
   );
 
   const propose = () => navigation.navigate("ProposeEvent");
+  const findOpponent = () => navigation.navigate("Matchmaking");
 
   const header = (
     <View style={styles.header}>
@@ -54,7 +55,8 @@ export default function EventsScreen({ navigation }: any) {
         <Text style={styles.subtitle}>Les duels annoncés. Un duel n'est confirmé que lorsque les deux joueurs ont accepté.</Text>
       </View>
       <View style={styles.cta}>
-        <EventAction label="Proposer un duel" onPress={propose} />
+        <EventAction label="Trouver un adversaire" onPress={findOpponent} />
+        <EventAction label="Défier quelqu’un" variant="ghost" onPress={propose} />
       </View>
     </View>
   );
@@ -91,7 +93,7 @@ export default function EventsScreen({ navigation }: any) {
 function EventRow({ event, players, onPress }: { event: DuelEvent; players: Record<string, PlayerInfo>; onPress: () => void }) {
   const a = players[event.player_a];
   const b = players[event.player_b];
-  const when = formatTimeFr(event.scheduled_at, event.timezone);
+  const when = formatTimeFr(event.scheduled_at, deviceTimezone());
   const status = eventStatusInfo(event.status).label;
   const label = `${playerName(a)} contre ${playerName(b)}, ${formatLabel(event.format_key)}, ${when}, statut ${status}`;
   return (
@@ -136,7 +138,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 12, marginBottom: 6 },
   title: { ...TYPO.display, color: COLORS.text, fontSize: 24 },
   subtitle: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  cta: { flexGrow: 1, flexBasis: 180, maxWidth: 320 },
+  cta: { flexGrow: 1, flexBasis: 180, maxWidth: 320, gap: 8 },
   row: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 10, minHeight: 48 },
   rowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
   format: { color: COLORS.primary, fontSize: 12, fontWeight: "800", flexShrink: 1, textAlign: "right" },

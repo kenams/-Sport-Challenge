@@ -15,6 +15,7 @@ export type RootStackParamList = {
   Moderation: undefined;
   Events: undefined;
   ProposeEvent: { opponentId?: string; opponentPseudo?: string } | undefined;
+  Matchmaking: undefined;
   EventDetail: { eventId: string };
   DuelLive: { eventId: string };
   CameraJudgeTest: { formatKey?: "pushups_60s" | "pullups_max" } | undefined;

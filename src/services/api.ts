@@ -45,6 +45,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_opponent: "Adversaire invalide.",
   opponent_not_found: "Adversaire introuvable.",
   date_in_past: "La date doit être dans le futur.",
+  duel_date_out_of_range: "Choisis un créneau entre 30 minutes et 14 jours à l'avance.",
+  invalid_timezone: "Fuseau horaire invalide.",
+  proposal_expired: "Cette invitation a expiré. Elle n'entraîne aucune défaite ni perte de points.",
+  city_required_for_local: "Renseigne ta ville dans ton profil pour chercher un adversaire près de toi.",
+  already_matched: "Un adversaire a été trouvé. Ouvre l'invitation pour répondre.",
   event_not_open: "Cet événement n'accepte plus de réponse.",
   event_closed: "Cet événement est terminé ou annulé.",
   event_not_open_for_support: "Le soutien n'est possible que pour un événement confirmé.",
@@ -371,16 +376,26 @@ export const listAttemptReports = (attemptId: string) =>
 
 export const proposeEvent = (opponentId: string, format: FormatKey, scheduledAt: string, timezone = "Europe/Paris") =>
   wrap<string>(() => supabase.rpc("propose_event", { p_opponent: opponentId, p_format: format, p_scheduled_at: scheduledAt, p_timezone: timezone }));
+export const proposeEventSlots = (opponentId: string, format: FormatKey, slots: string[], timezone = "Europe/Paris") =>
+  wrap<string>(() => supabase.rpc("propose_event_slots", { p_opponent: opponentId, p_format: format, p_slots: slots, p_timezone: timezone }));
+export const acceptEventSlot = (id: string, scheduledAt: string) => wrap(() => supabase.rpc("accept_event_slot", { p_id: id, p_scheduled_at: scheduledAt }));
 
 export const respondEvent = (id: string, accept: boolean) => wrap(() => supabase.rpc("respond_event", { p_id: id, p_accept: accept }));
+export const expireEventProposals = () => wrap<number>(() => supabase.rpc("expire_duel_proposals"));
+export const joinDuelMatchmaking = (format: FormatKey, timezone: string, localOnly: boolean) =>
+  wrap<string | null>(() => supabase.rpc("join_duel_matchmaking", { p_format: format, p_timezone: timezone, p_local_only: localOnly }));
+export const getDuelMatchmakingStatus = () =>
+  wrap<Array<{ status: "waiting" | "matched" | "cancelled" | "expired"; matched_event_id: string | null; expires_at: string }>>(() => supabase.rpc("get_duel_matchmaking_status"));
+export const leaveDuelMatchmaking = () => wrap<void>(() => supabase.rpc("leave_duel_matchmaking"));
 export const cancelEvent = (id: string) => wrap(() => supabase.rpc("cancel_event", { p_id: id }));
 export const supportEvent = (id: string, playerId: string) => wrap(() => supabase.rpc("support_event", { p_id: id, p_supported: playerId }));
 export const toggleReminder = (id: string) => wrap<boolean>(() => supabase.rpc("toggle_reminder", { p_id: id }));
 
 export const getPublicEvent = (slug: string) => wrap<PublicEvent | null>(() => supabase.rpc("get_public_event", { p_slug: slug }));
 
-export const listUpcomingEvents = () =>
-  wrap<DuelEvent[]>(() =>
+export const listUpcomingEvents = async (): Promise<ApiResult<DuelEvent[]>> => {
+  await expireEventProposals();
+  return wrap<DuelEvent[]>(() =>
     supabase
       .from("duel_events")
       .select("*")
@@ -388,6 +403,7 @@ export const listUpcomingEvents = () =>
       .order("scheduled_at", { ascending: true, nullsFirst: false })
       .limit(30)
   );
+};
 
 export const myEventSupport = async (): Promise<Record<string, string>> => {
   const { data, error } = await supabase.from("event_supporters").select("event_id,supported_user_id");
