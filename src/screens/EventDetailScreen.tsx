@@ -184,6 +184,27 @@ export default function EventDetailScreen({ navigation, route }: any) {
           </Text>
         </View>
 
+        {(event.status === "live" || (event.status === "scheduled" && role !== "visitor")) ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>{event.status === "live" ? "Le duel est en direct" : "Prêts pour le face-à-face ?"}</Text>
+            <Text style={styles.sub}>
+              Les deux joueurs apparaissent dans le même live. Le score affiché pendant l’effort reste provisoire jusqu’à la validation humaine.
+            </Text>
+            <EventAction
+              label={event.status === "live" ? "Rejoindre le live" : "Lancer le live"}
+              onPress={() => navigation.navigate("DuelLive", { eventId: event.id })}
+            />
+          </View>
+        ) : null}
+
+        {event.format_key === "pushups_60s" || event.format_key === "pullups_max" ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Préparer le mouvement</Text>
+            <Text style={styles.sub}>Teste les repères caméra avant le duel. L’essai est local et ne crée aucun score.</Text>
+            <EventAction label="Tester l’arbitre caméra" variant="ghost" onPress={() => navigation.navigate("CameraJudgeTest", { formatKey: event.format_key })} />
+          </View>
+        ) : null}
+
         {pub?.result ? (
           <View style={styles.card} accessible accessibilityLabel={`Résultat : ${nameA} ${pub.result.score_a}, ${nameB} ${pub.result.score_b}`}>
             <Text style={styles.cardTitle}>Résultat</Text>

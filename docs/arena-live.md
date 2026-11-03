@@ -1,4 +1,8 @@
-# Arena Live - Architecture & Modèle de Données
+# Arena Live hérité — documentation historique
+
+> Ce moteur (`arena_rooms`, `arena_rounds`, `arena_signals` et `arena-signal`) est archivé et désactivé en production. Ne pas le redéployer. Le parcours actuel des duels vidéo est décrit dans [`duel-live-v1.md`](./duel-live-v1.md) et utilise les `duel_events` existants.
+
+Les sections ci-dessous décrivent uniquement l'ancien moteur et sont conservées comme référence de migration.
 
 ## Tables Supabase
 

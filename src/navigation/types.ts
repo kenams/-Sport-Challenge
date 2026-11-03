@@ -16,6 +16,8 @@ export type RootStackParamList = {
   Events: undefined;
   ProposeEvent: { opponentId?: string; opponentPseudo?: string } | undefined;
   EventDetail: { eventId: string };
+  DuelLive: { eventId: string };
+  CameraJudgeTest: { formatKey?: "pushups_60s" | "pullups_max" } | undefined;
   Pro: undefined;
   // Accessible avec ou sans compte (lien partagé)
   PublicEvent: { slug: string };
