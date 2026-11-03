@@ -15,6 +15,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       PublicEvent: "e/:slug",
       ChallengeDetail: "d/:challengeId",
       EventDetail: "duels/:eventId",
+      DuelLive: "duels/:eventId/live",
       CreateChallenge: "CreateChallenge",
       RespondChallenge: "RespondChallenge",
       ProposeEvent: "ProposeEvent",

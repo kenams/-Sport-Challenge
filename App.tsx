@@ -24,6 +24,7 @@ import ModerationScreen from "./src/screens/ModerationScreen";
 import EventsScreen from "./src/screens/EventsScreen";
 import ProposeEventScreen from "./src/screens/ProposeEventScreen";
 import EventDetailScreen from "./src/screens/EventDetailScreen";
+import DuelLiveScreen from "./src/screens/DuelLiveScreen";
 import PublicEventScreen from "./src/screens/PublicEventScreen";
 import ProScreen from "./src/screens/ProScreen";
 import GroupsScreen from "./src/screens/GroupsScreen";
@@ -199,6 +200,7 @@ export default function App() {
               <Stack.Screen name="Moderation" component={ModerationScreen} />
               <Stack.Screen name="ProposeEvent" component={ProposeEventScreen as any} />
               <Stack.Screen name="EventDetail" component={EventDetailScreen as any} />
+              <Stack.Screen name="DuelLive" component={DuelLiveScreen as any} />
               <Stack.Screen name="Pro" component={ProScreen} />
               <Stack.Screen name="PublicEvent" component={PublicEventScreen as any} />
             </>
