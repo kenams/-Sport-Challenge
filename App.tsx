@@ -23,6 +23,7 @@ import ProfileScreen from "./src/screens/ProfileScreen";
 import ModerationScreen from "./src/screens/ModerationScreen";
 import EventsScreen from "./src/screens/EventsScreen";
 import ProposeEventScreen from "./src/screens/ProposeEventScreen";
+import MatchmakingScreen from "./src/screens/MatchmakingScreen";
 import EventDetailScreen from "./src/screens/EventDetailScreen";
 import DuelLiveScreen from "./src/screens/DuelLiveScreen";
 import CameraJudgeTestScreen from "./src/screens/CameraJudgeTestScreen";
@@ -200,6 +201,7 @@ export default function App() {
               <Stack.Screen name="RespondChallenge" component={RespondChallengeScreen as any} />
               <Stack.Screen name="Moderation" component={ModerationScreen} />
               <Stack.Screen name="ProposeEvent" component={ProposeEventScreen as any} />
+              <Stack.Screen name="Matchmaking" component={MatchmakingScreen as any} />
               <Stack.Screen name="EventDetail" component={EventDetailScreen as any} />
               <Stack.Screen name="DuelLive" component={DuelLiveScreen as any} />
               <Stack.Screen name="CameraJudgeTest" component={CameraJudgeTestScreen as any} />

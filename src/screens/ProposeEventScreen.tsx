@@ -5,8 +5,8 @@ import EventAction from "../components/immortal/EventAction";
 import EventAuthPrompt from "../components/immortal/EventAuthPrompt";
 import EventShareButton from "../components/immortal/EventShareButton";
 import { COLORS, TYPO } from "../theme";
-import { getMyProfile, getMyStats, getPlayerLevel, listFormats, proposeEvent, searchPlayers } from "../services/api";
-import { FALLBACK_FORMATS, formatTimeFr } from "../domain/formats";
+import { getMyProfile, getMyStats, getPlayerLevel, listFormats, proposeEventSlots, searchPlayers } from "../services/api";
+import { deviceTimezone, FALLBACK_FORMATS, formatTimeFr } from "../domain/formats";
 import type { ChallengeFormat, FormatKey } from "../domain/types";
 import { exceedsDirectLevelGap, MAX_DIRECT_LEVEL_GAP } from "../domain/challengeRules";
 import { supabase } from "../supabase";
@@ -29,9 +29,9 @@ export default function ProposeEventScreen({ navigation, route }: any) {
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
 
-  const [webValue, setWebValue] = useState("");
-  const [fields, setFields] = useState({ day: "", month: "", year: "", hour: "", minute: "" });
-  const [timezone, setTimezone] = useState(DEFAULT_TIMEZONE);
+  const [webValues, setWebValues] = useState([""]);
+  const [fieldRows, setFieldRows] = useState([{ day: "", month: "", year: "", hour: "", minute: "" }]);
+  const [timezone, setTimezone] = useState(deviceTimezone() || DEFAULT_TIMEZONE);
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -47,15 +47,14 @@ export default function ProposeEventScreen({ navigation, route }: any) {
     if (opponent?.id && opponent.level == null) getPlayerLevel(opponent.id).then((level) => setOpponent((current) => current?.id === opponent.id ? { ...current, level } : current));
   }, [opponent?.id]);
 
-  const parts: LocalParts | null = useMemo(() => {
-    if (Platform.OS === "web") return parseDatetimeLocal(webValue);
-    return { year: toInt(fields.year), month: toInt(fields.month), day: toInt(fields.day), hour: toInt(fields.hour), minute: toInt(fields.minute) };
-  }, [webValue, fields]);
-
   const tzOk = isValidTimezone(timezone);
-  const parsed = parts ? partsToIso(parts, timezone) : null;
-  const touchedDate = Platform.OS === "web" ? webValue !== "" : Object.values(fields).some((v) => v !== "");
-  const dateError = !tzOk ? "Fuseau horaire inconnu (exemple : Europe/Paris)." : touchedDate && parsed && !parsed.ok ? parsed.error : null;
+  const slotParts: (LocalParts | null)[] = Platform.OS === "web"
+    ? webValues.map(parseDatetimeLocal)
+    : fieldRows.map((f) => Object.values(f).every((value) => !value) ? null : ({ year: toInt(f.year), month: toInt(f.month), day: toInt(f.day), hour: toInt(f.hour), minute: toInt(f.minute) }));
+  const slotResults = slotParts.map((parts) => parts ? partsToIso(parts, timezone) : null);
+  const validSlots = slotResults.filter((r): r is { ok: true; iso: string } => !!r?.ok).map((r) => r.iso);
+  const touchedDate = Platform.OS === "web" ? webValues.some(Boolean) : fieldRows.some((f) => Object.values(f).some(Boolean));
+  const dateError = !tzOk ? "Fuseau horaire inconnu (exemple : Europe/Paris)." : touchedDate && slotResults.some((r) => r && !r.ok) ? (slotResults.find((r) => r && !r.ok) as { ok: false; error: string }).error : null;
 
   const runSearch = async () => {
     const q = query.trim();
@@ -81,11 +80,12 @@ export default function ProposeEventScreen({ navigation, route }: any) {
     if (!opponent) return setFormError("Choisis ton adversaire.");
     if (opponent.id === uid) return setFormError("Tu ne peux pas t'affronter toi-même.");
     if (exceedsDirectLevelGap(myLevel, opponent.level)) return setFormError("Écart de niveau trop important : limite de " + MAX_DIRECT_LEVEL_GAP + " niveaux.");
-    if (!parts || !parsed) return setFormError("Renseigne la date et l'heure du duel.");
-    if (!parsed.ok) return setFormError(parsed.error);
+    if (validSlots.length === 0) return setFormError("Renseigne au moins un créneau valide.");
+    if (dateError) return setFormError(dateError);
+    if (new Set(validSlots).size !== validSlots.length) return setFormError("Retire les créneaux identiques.");
     setSubmitting(true);
     const tz = timezone.trim();
-    const result = await proposeEvent(opponent.id, formatKey, parsed.iso, tz);
+    const result = await proposeEventSlots(opponent.id, formatKey, validSlots, tz);
     if (result.error || !result.data) {
       setSubmitting(false);
       return setFormError(result.error ?? "La proposition a échoué.");
@@ -98,7 +98,7 @@ export default function ProposeEventScreen({ navigation, route }: any) {
         share = {
           slug: row.slug as string,
           status: (row.status as ShareableEvent["status"]) ?? "proposed",
-          scheduled_at: parsed.iso,
+          scheduled_at: validSlots[0],
           timezone: tz,
           formatKey,
           playerA: { pseudo: me.data?.pseudo ?? null, city: me.data?.city ?? null },
@@ -143,7 +143,7 @@ export default function ProposeEventScreen({ navigation, route }: any) {
         <Text style={styles.title} accessibilityRole="header">
           Proposer un duel
         </Text>
-        <Text style={styles.hint}>Pompes ou tractions, un adversaire, une date. Le duel n'est confirmé qu'après son accord.</Text>
+          <Text style={styles.hint}>Choisis une heure précise dans les 14 prochains jours. L’invitation expire après 48 h sans réponse, sans défaite ni perte de points.</Text>
 
         <Section title="1. Format">
           <View accessibilityRole="radiogroup" style={{ gap: 8 }}>
@@ -210,133 +210,65 @@ export default function ProposeEventScreen({ navigation, route }: any) {
         </Section>
 
         <Section title="3. Date et heure">
-          {Platform.OS === "web" ? (
-            React.createElement("input", {
-              type: "datetime-local",
-              value: webValue,
-              onChange: (e: any) => setWebValue(e.target.value),
-              "aria-label": "Date et heure du duel",
-              style: {
-                minHeight: 48,
-                padding: "10px 12px",
-                borderRadius: 12,
-                border: `1px solid ${COLORS.border}`,
-                background: COLORS.surface,
-                color: COLORS.text,
-                fontSize: 16,
-                colorScheme: "dark",
-                width: "100%",
-                boxSizing: "border-box",
-              },
-            })
-          ) : (
-            <View style={styles.dateRow}>
-              <Field label="Jour" value={fields.day} onChange={(v) => setFields((s) => ({ ...s, day: v }))} placeholder="JJ" max={2} />
-              <Field label="Mois" value={fields.month} onChange={(v) => setFields((s) => ({ ...s, month: v }))} placeholder="MM" max={2} />
-              <Field label="Année" value={fields.year} onChange={(v) => setFields((s) => ({ ...s, year: v }))} placeholder="AAAA" max={4} wide />
-              <Field label="Heure" value={fields.hour} onChange={(v) => setFields((s) => ({ ...s, hour: v }))} placeholder="HH" max={2} />
-              <Field label="Min" value={fields.minute} onChange={(v) => setFields((s) => ({ ...s, minute: v }))} placeholder="MM" max={2} />
-            </View>
-          )}
-          <Text style={styles.label}>Fuseau horaire</Text>
-          <TextInput
-            value={timezone}
-            onChangeText={setTimezone}
-            autoCapitalize="none"
-            autoCorrect={false}
-            accessibilityLabel="Fuseau horaire"
-            placeholder="Europe/Paris"
-            placeholderTextColor={COLORS.textMuted}
-            style={[styles.input, !tzOk ? styles.inputError : null]}
-          />
-          {dateError ? <Text style={styles.error}>{dateError}</Text> : null}
-          {parsed && parsed.ok && tzOk ? (
-            <Text style={styles.preview} accessibilityLiveRegion="polite">
-              Le duel aura lieu : {formatTimeFr(parsed.iso, timezone.trim())}
-            </Text>
-          ) : (
-            <Text style={styles.hint}>La date doit être dans le futur. L'heure est celle du fuseau indiqué.</Text>
-          )}
-        </Section>
+          <Text style={styles.hint}>Propose un à trois créneaux. Ton adversaire choisira celui qui lui convient.</Text>
+          {slotParts.map((parts, index) => (
+            <View key={index} style={styles.slotBlock}>
+              <View style={styles.slotHeader}>
+                <Text style={styles.label}>Créneau {index + 1}</Text>
+                {slotParts.length > 1 ? <Pressable accessibilityRole="button" onPress={() => {
+                  if (Platform.OS === "web") setWebValues((values) => values.filter((_, i) => i !== index));
+                  else setFieldRows((rows) => rows.filter((_, i) => i !== index));
+                }}><Text style={styles.removeSlot}>Supprimer</Text></Pressable> : null}
+              </View>
+              {Platform.OS === "web" ? React.createElement("input", {
+                type: "datetime-local",
+                value: webValues[index] ?? "",
+                onChange: (e: any) => setWebValues((values) => values.map((value, i) => i === index ? e.target.value : value)),
+                "aria-label": `Date et heure du créneau ${index + 1}`,
+                style: { minHeight: 48, padding: "10px 12px", borderRadius: 12, border: `1px solid ${COLORS.border}`, background: COLORS.surface, color: COLORS.text, fontSize: 16, colorScheme: "dark", width: "100%", boxSizing: "border-box" },
+              }) : (
+                <View style={styles.dateRow}>
+                  {(["day", "month", "year", "hour", "minute"] as const).map((key) => {
+                    const labels = { day: "Jour", month: "Mois", year: "Année", hour: "Heure", minute: "Min" };
+                    const placeholders = { day: "JJ", month: "MM…4939 tokens truncated…ok: false; error: string };
 
-        {needAuth || (ready && !uid && formError) ? (
-          <EventAuthPrompt reason="Connecte-toi pour envoyer ta proposition." onLogin={() => navigation.navigate("Login")} onRegister={() => navigation.navigate("Register")} />
-        ) : null}
-        {formError ? (
-          <Text style={styles.error} accessibilityRole="alert">
-            {formError}
-          </Text>
-        ) : null}
-        {!ready ? <ActivityIndicator color={COLORS.primary} /> : null}
-        <EventAction label="Envoyer la proposition" onPress={submit} busy={submitting} disabled={!ready} />
-      </ScrollView>
-    </ScreenContainer>
-  );
+export function partsToIso(parts: LocalParts, tz: string, now: number = Date.now()): ParseResult {
+  const { year, month, day, hour, minute } = parts;
+  const all = [year, month, day, hour, minute];
+  if (all.some((n) => !Number.isInteger(n))) return { ok: false, error: "Renseigne tous les champs de date et d'heure avec des nombres." };
+  if (year < 2020 || year > 2100) return { ok: false, error: "Année invalide." };
+  if (month < 1 || month > 12) return { ok: false, error: "Mois invalide (1 à 12)." };
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return { ok: false, error: "Heure invalide (0 à 23 h, 0 à 59 min)." };
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return { ok: false, error: "Ce jour n'existe pas dans ce mois." };
+  if (!isValidTimezone(tz)) return { ok: false, error: "Fuseau horaire inconnu (exemple : Europe/Paris)." };
+  const zone = tz.trim();
+  const guess = Date.UTC(year, month - 1, day, hour, minute);
+  let ts = guess - tzOffsetMs(guess, zone);
+  ts = guess - tzOffsetMs(ts, zone);
+  // Vérification aller-retour : au passage à l'heure d'été, certaines heures n'existent pas.
+  if (ts + tzOffsetMs(ts, zone) !== guess) {
+    return { ok: false, error: "Cette heure n'existe pas dans ce fuseau à cause du changement d'heure. Choisis une autre heure." };
+  }
+  // Une heure répétée en automne désigne deux instants : demander une heure non ambiguë.
+  const offsets = new Set([-86400000, 0, 86400000].map((delta) => tzOffsetMs(ts + delta, zone)));
+  const matches = [...offsets].filter((offset) => {
+    const candidate = guess - offset;
+    return candidate + tzOffsetMs(candidate, zone) === guess;
+  });
+  if (matches.length > 1) return { ok: false, error: "Cette heure se produit deux fois lors du changement d'heure. Choisis une autre heure pour éviter toute confusion." };
+  if (ts < now + 30 * 60 * 1000) return { ok: false, error: "Choisis un créneau au moins 30 minutes à l'avance." };
+  if (ts > now + 14 * 24 * 60 * 60 * 1000) return { ok: false, error: "Un duel direct doit être programmé dans les 14 prochains jours." };
+  return { ok: true, iso: new Date(ts).toISOString() };
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.card}>
-      <Text style={styles.cardTitle} accessibilityRole="header">
-        {title}
-      </Text>
-      {children}
-    </View>
-  );
+/** Valeur d'un champ datetime-local : "AAAA-MM-JJTHH:mm". */
+export function parseDatetimeLocal(value: string): LocalParts | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  return { year: +m[1], month: +m[2], day: +m[3], hour: +m[4], minute: +m[5] };
 }
 
-function Choice({ selected, title, subtitle, onPress }: { selected: boolean; title: string; subtitle: string; onPress: () => void }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
-      accessibilityLabel={title}
-      style={[styles.choice, selected ? styles.choiceOn : null, Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null]}
-    >
-      <Text style={styles.name}>{title}</Text>
-      <Text style={styles.hint}>{subtitle}</Text>
-    </Pressable>
-  );
+export function toInt(text: string): number {
+  return /^\d{1,4}$/.test(text.trim()) ? parseInt(text.trim(), 10) : NaN;
 }
-
-function Field({ label, value, onChange, placeholder, max, wide }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; max: number; wide?: boolean }) {
-  return (
-    <View style={{ flexGrow: wide ? 1.4 : 1, flexBasis: wide ? 76 : 54 }}>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={(v) => onChange(v.replace(/\D/g, "").slice(0, max))}
-        keyboardType="number-pad"
-        maxLength={max}
-        placeholder={placeholder}
-        placeholderTextColor={COLORS.textMuted}
-        accessibilityLabel={label}
-        style={[styles.input, { textAlign: "center", paddingHorizontal: 4 }]}
-      />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: { paddingBottom: 90, gap: 14 },
-  title: { ...TYPO.display, color: COLORS.text, fontSize: 24 },
-  hint: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18 },
-  text: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
-  card: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 10 },
-  cardTitle: { color: COLORS.primary, fontSize: 13, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
-  choice: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, gap: 2, minHeight: 56 },
-  choiceOn: { borderColor: COLORS.primary, backgroundColor: "rgba(212,175,55,0.1)", borderWidth: 2 },
-  name: { color: COLORS.text, fontSize: 16, fontWeight: "800" },
-  chosen: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
-  searchRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
-  input: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.text, paddingHorizontal: 12, fontSize: 16 },
-  inputError: { borderColor: "#F87171" },
-  result: { minHeight: 52, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, justifyContent: "center" },
-  dateRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
-  label: { color: COLORS.textMuted, fontSize: 12, fontWeight: "700", marginBottom: 4 },
-  preview: { color: COLORS.success, fontSize: 14, fontWeight: "700" },
-  error: { color: "#F87171", fontSize: 14, lineHeight: 20 },
-  success: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: "rgba(52,211,153,0.4)", backgroundColor: "rgba(52,211,153,0.08)", gap: 6 },
-  successTitle: { color: COLORS.success, fontSize: 17, fontWeight: "900" },
-});

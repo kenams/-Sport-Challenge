@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import EmptyState from "../components/immortal/EmptyState";
 import ErrorState from "../components/immortal/ErrorState";
@@ -12,8 +12,8 @@ import EventStatusBadge from "../components/immortal/EventStatusBadge";
 import EventSupportPanel from "../components/immortal/EventSupportPanel";
 import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
-import { cancelEvent, getPublicEvent, listFormats, respondEvent } from "../services/api";
-import { FALLBACK_FORMATS, disciplineLabel, formatByKey, formatLabel, formatTimeFr } from "../domain/formats";
+import { acceptEventSlot, cancelEvent, expireEventProposals, getPublicEvent, listFormats, respondEvent } from "../services/api";
+import { deviceTimezone, FALLBACK_FORMATS, disciplineLabel, formatByKey, formatLabel, formatTimeFr } from "../domain/formats";
 import type { ChallengeFormat, DuelEvent, PublicEvent } from "../domain/types";
 import { publicEventUrl, hasShareableLink, type ShareableEvent } from "../services/share";
 import { loadPlayers, playerName, playerTerritory, type PlayerInfo } from "./helpers/eventProfiles";
@@ -36,11 +36,13 @@ export default function EventDetailScreen({ navigation, route }: any) {
   const [actionBusy, setActionBusy] = useState<"accept" | "refuse" | "cancel" | null>(null);
   const [actionMsg, setActionMsg] = useState<{ text: string; error: boolean } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
 
   const load = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
       try {
+        await expireEventProposals();
         const { data, error: dbError } = await supabase.from("duel_events").select("*").eq("id", eventId).maybeSingle();
         if (dbError || !data) {
           setEvent(null);
@@ -51,6 +53,7 @@ export default function EventDetailScreen({ navigation, route }: any) {
         }
         const row = data as DuelEvent;
         setEvent(row);
+        setSelectedSlot((current) => current && row.proposed_slots?.includes(current) ? current : row.proposed_slots?.[0] ?? row.scheduled_at);
         setError(null);
         const [pubRes, profileMap] = await Promise.all([getPublicEvent(row.slug), loadPlayers([row])]);
         setPub(pubRes.data ?? null);
@@ -83,7 +86,9 @@ export default function EventDetailScreen({ navigation, route }: any) {
     if (!event) return;
     setActionBusy(accept ? "accept" : "refuse");
     setActionMsg(null);
-    const res = await respondEvent(event.id, accept);
+    const res = accept && !event.is_matchmade && selectedSlot
+      ? await acceptEventSlot(event.id, selectedSlot)
+      : await respondEvent(event.id, accept);
     setActionBusy(null);
     if (res.error) return setActionMsg({ text: res.error, error: true });
     setActionMsg({ text: accept ? "Tu as accepté. Le serveur confirme le duel quand les deux joueurs ont accepté." : "Tu as refusé ce duel.", error: false });
@@ -132,7 +137,7 @@ export default function EventDetailScreen({ navigation, route }: any) {
   const nameA = playerName(a);
   const nameB = playerName(b);
   const format = formatByKey(formats, event.format_key);
-  const when = formatTimeFr(event.scheduled_at, event.timezone);
+  const when = formatTimeFr(event.scheduled_at, deviceTimezone());
   const info = eventStatusInfo(event.status);
   const role = roleOf(event, uid);
   const url = publicEventUrl(event.slug);
@@ -179,7 +184,8 @@ export default function EventDetailScreen({ navigation, route }: any) {
           </View>
           <Text style={styles.when}>{when}</Text>
           <Text style={styles.sub}>
-            {formatLabel(event.format_key)} · Territoires déclarés par les joueurs
+            {formatLabel(event.format_key)} · Ton heure locale
+            {event.is_matchmade ? " · Trouvé automatiquement" : " · Territoires déclarés par les joueurs"}
             {role !== "visitor" ? " · Tu participes à ce duel" : ""}
           </Text>
         </View>
@@ -218,15 +224,38 @@ export default function EventDetailScreen({ navigation, route }: any) {
         {canRespond(event, uid) ? (
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{role === "player_b" ? "On t'a défié" : "Ta réponse"}</Text>
-            <Text style={styles.sub}>Le duel n'est confirmé qu'une fois que les deux joueurs ont accepté.</Text>
+            <Text style={styles.sub}>{event.is_matchmade ? "Un adversaire a été trouvé. Vous avez 15 minutes pour confirmer tous les deux." : "Choisis le créneau qui te convient. L'invitation expire après 48 h, sans défaite ni perte de points."}</Text>
+            {!event.is_matchmade && role === "player_b" && (event.proposed_slots?.length ?? 0) > 0 ? (
+              <View style={{ gap: 8 }}>
+                {event.proposed_slots!.map((slot) => (
+                  <Pressable key={slot} onPress={() => setSelectedSlot(slot)} accessibilityRole="radio" accessibilityState={{ selected: selectedSlot === slot }} style={[styles.slot, selectedSlot === slot ? styles.slotSelected : null]}>
+                    <Text style={styles.sub}>{formatTimeFr(slot, deviceTimezone())}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
             <View style={styles.row}>
               <View style={styles.cell}>
-                <EventAction label="Accepter" onPress={() => respond(true)} busy={actionBusy === "accept"} disabled={actionBusy !== null} />
+                <EventAction label="Accepter" onPress={() => respond(true)} busy={actionBusy === "accept"} disabled={actionBusy !== null || (!event.is_matchmade && role === "player_b" && !selectedSlot)} />
               </View>
               <View style={styles.cell}>
                 <EventAction label="Refuser" variant="danger" onPress={() => respond(false)} busy={actionBusy === "refuse"} disabled={actionBusy !== null} />
               </View>
             </View>
+          </View>
+        ) : null}
+
+        {event.status === "expired" ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Invitation expirée</Text>
+            <Text style={styles.sub}>Aucune défaite, aucun point perdu et aucune pénalité de fiabilité. Tu peux proposer un autre créneau.</Text>
+          </View>
+        ) : null}
+
+        {event.status === "scheduled" ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>En cas d’absence</Text>
+            <Text style={styles.sub}>Aucune défaite n’est attribuée automatiquement pour une absence. Un score ne peut être officialisé que par la modération après examen.</Text>
           </View>
         ) : null}
 
@@ -332,4 +361,6 @@ const styles = StyleSheet.create({
   score: { color: COLORS.text, fontSize: 36, fontWeight: "900" },
   row: { flexDirection: "row", gap: 10, flexWrap: "wrap" },
   cell: { flexGrow: 1, flexBasis: 150 },
+  slot: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  slotSelected: { borderColor: COLORS.primary, borderWidth: 2 },
 });

@@ -109,3 +109,11 @@ export function formatTimeFr(iso: string | null, timezone = "Europe/Paris"): str
     return new Date(iso).toLocaleString("fr-FR");
   }
 }
+
+export function deviceTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Paris";
+  } catch {
+    return "Europe/Paris";
+  }
+}

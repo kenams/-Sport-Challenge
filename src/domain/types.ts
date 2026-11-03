@@ -87,7 +87,7 @@ export interface MyPrivateProfile {
   weight_kg: number | null;
 }
 
-export type EventStatus = "proposed" | "accepted" | "scheduled" | "live" | "finished" | "cancelled";
+export type EventStatus = "proposed" | "accepted" | "scheduled" | "live" | "finished" | "cancelled" | "expired";
 
 export interface DuelEvent {
   id: string;
@@ -101,6 +101,9 @@ export interface DuelEvent {
   status: EventStatus;
   accepted_by_a: boolean;
   accepted_by_b: boolean;
+  proposal_expires_at?: string | null;
+  proposed_slots?: string[];
+  is_matchmade?: boolean;
   created_at: string;
 }
 

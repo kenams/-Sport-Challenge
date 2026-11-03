@@ -10,7 +10,7 @@ import EventSupportPanel from "../components/immortal/EventSupportPanel";
 import { COLORS } from "../theme";
 import { supabase } from "../supabase";
 import { getPublicEvent } from "../services/api";
-import { disciplineLabel, formatLabel, formatTimeFr } from "../domain/formats";
+import { deviceTimezone, disciplineLabel, formatLabel, formatTimeFr } from "../domain/formats";
 import type { PublicEvent } from "../domain/types";
 import { hasShareableLink, publicEventUrl } from "../services/share";
 import { playerName, playerTerritory } from "./helpers/eventProfiles";
@@ -109,7 +109,7 @@ export default function PublicEventScreen({ navigation, route }: any) {
 
   const nameA = playerName(event.player_a);
   const nameB = playerName(event.player_b);
-  const when = formatTimeFr(event.scheduled_at, event.timezone);
+  const when = formatTimeFr(event.scheduled_at, deviceTimezone());
   const formatKey = event.format;
   const posterWidth = Math.min(340, Math.max(220, width - 56));
   const feedback = engagement.feedback ?? (uid && idMissing ? { text: "Le soutien n'est pas disponible depuis cette page pour le moment.", error: true } : null);

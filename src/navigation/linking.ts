@@ -20,6 +20,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       CreateChallenge: "CreateChallenge",
       RespondChallenge: "RespondChallenge",
       ProposeEvent: "ProposeEvent",
+      Matchmaking: "trouver-adversaire",
       Moderation: "Moderation",
       Pro: "Pro",
       Onboarding: "Onboarding",

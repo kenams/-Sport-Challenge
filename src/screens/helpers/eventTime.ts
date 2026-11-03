@@ -58,7 +58,8 @@ export function partsToIso(parts: LocalParts, tz: string, now: number = Date.now
     return candidate + tzOffsetMs(candidate, zone) === guess;
   });
   if (matches.length > 1) return { ok: false, error: "Cette heure se produit deux fois lors du changement d'heure. Choisis une autre heure pour éviter toute confusion." };
-  if (ts <= now) return { ok: false, error: "La date et l'heure doivent être dans le futur." };
+  if (ts < now + 30 * 60 * 1000) return { ok: false, error: "Choisis un créneau au moins 30 minutes à l'avance." };
+  if (ts > now + 14 * 24 * 60 * 60 * 1000) return { ok: false, error: "Un duel direct doit être programmé dans les 14 prochains jours." };
   return { ok: true, iso: new Date(ts).toISOString() };
 }
 

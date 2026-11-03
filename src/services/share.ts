@@ -1,6 +1,6 @@
 // Lien public et partage d'un événement IMMORTAL. Aucune donnée privée : pseudo + ville déclarés, date, format.
 import { Platform, Share } from "react-native";
-import { formatTimeFr } from "../domain/formats";
+import { deviceTimezone, formatTimeFr } from "../domain/formats";
 import type { EventStatus } from "../domain/types";
 
 export type ShareableEvent = {
@@ -39,7 +39,7 @@ function who(p: { pseudo: string | null; city: string | null }): string {
 export function buildShareText(event: ShareableEvent): string {
   const format = SHORT_FORMAT[event.formatKey] ?? event.formatKey;
   const duel = `${who(event.playerA)} vs ${who(event.playerB)} — ${format}`;
-  const when = formatTimeFr(event.scheduled_at, event.timezone);
+  const when = formatTimeFr(event.scheduled_at, deviceTimezone());
   if (event.status === "scheduled") return `${when} : ${duel}. Viens soutenir !`;
   if (event.status === "cancelled") return `Duel annulé : ${duel}.`;
   if (event.status === "finished") return `Duel terminé : ${duel}.`;
