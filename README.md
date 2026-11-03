@@ -27,9 +27,21 @@ node scripts/test-edge-functions.mjs # Edge Functions réelles en local (voir do
 npx tsc --noEmit && npx jest
 ```
 
+## Générer l’APK Android
+
+Le profil `preview` produit un APK installable pour les essais internes :
+
+```sh
+npx eas-cli login
+npx eas-cli build --platform android --profile preview
+```
+
+Dans l’environnement EAS `preview`, configure `EXPO_PUBLIC_SUPABASE_URL` et `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Pour le live vidéo, configure aussi `LIVEKIT_URL`, `LIVEKIT_API_KEY` et `LIVEKIT_API_SECRET` comme secrets de la fonction Supabase `duel-live-token` (jamais dans l’application mobile). Le compteur mobile reste manuel et le résultat officiel passe par un modérateur.
+
 ## État honnête
 - **Fait et testé** : règles serveur (210 vérifications), fonctions Edge (47 vérifications, avec faux Stripe local), logique des écrans (jest), typage.
-- **Non fait** : abonnement Pro (rien n'est achetable ; le paiement web Stripe est prêt mais non déployé ni testé en mode test Stripe), parcours complet validé sur téléphone, arènes en direct (phase ultérieure, non livrée), export d'affiche en image et QR (dépendances à ajouter + nouveau build natif).
+- **À valider sur téléphone** : parcours complet sur appareil Android, permissions caméra/micro, et flux live avec deux comptes. L’arbitre automatique par caméra est disponible en bêta web ; sur Android, les répétitions sont comptées manuellement et validées par un modérateur. Le serveur LiveKit doit être configuré pour activer la vidéo en direct.
+- **Paiement mobile** : les achats iOS/Android restent désactivés ; l’abonnement Pro se gère sur le web.
 - Les migrations `20261102210000_immortal_private_sports_profile_level_gap.sql` et `20261102220000_immortal_avatar_library.sql` sont appliquées en production ; les champs date de naissance, sexe, taille et poids restent privés et absents des vues publiques.
 
 Voir `docs/PRO_SETUP.md` (abonnements) et `docs/COSTS.md` (coûts).

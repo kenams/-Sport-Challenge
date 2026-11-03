@@ -5,7 +5,7 @@ export const WEB_BASE_URL = ((process.env.EXPO_PUBLIC_WEB_BASE_URL ?? "").trim()
 
 // Chaque URL produite doit aussi être reconnue après rechargement ou ouverture dans un autre navigateur.
 export const linking: LinkingOptions<RootStackParamList> = {
-  prefixes: [WEB_BASE_URL, "immortal://"],
+  prefixes: [WEB_BASE_URL, "immortal://", "exp+immortal-k://"],
   config: {
     screens: {
       MainTabs: {
