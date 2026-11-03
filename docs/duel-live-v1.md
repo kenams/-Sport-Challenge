@@ -10,6 +10,7 @@ Le parcours du duel reste unique : depuis un duel accepté et programmé, un jou
 - Les tractions nécessitent un départ bras tendus et le passage d'un repère de barre placé par le participant. Le modèle n'ayant pas de point de menton, le passage est estimé depuis la bouche ; cette approximation peut se tromper.
 - Si les articulations sont masquées ou insuffisamment visibles, l'application demande de replacer la caméra et ne compte pas. Les consignes restent courtes : aligner le corps, descendre davantage, tendre les bras, ou dépasser le repère.
 - L'analyse tourne à fréquence réduite pour préserver le navigateur. C'est un outil bêta d'assistance, pas une preuve anti-triche : les erreurs de forme et l'élan restent à vérifier par le modérateur.
+- Un essai autonome est accessible depuis la fiche d'un duel compatible (ou via `/camera-test`). Il démarre la caméra après un clic, ne diffuse pas la vidéo, et n'enregistre aucun score.
 
 ## Règle du score
 

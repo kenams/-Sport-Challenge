@@ -197,6 +197,14 @@ export default function EventDetailScreen({ navigation, route }: any) {
           </View>
         ) : null}
 
+        {event.format_key === "pushups_60s" || event.format_key === "pullups_max" ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Préparer le mouvement</Text>
+            <Text style={styles.sub}>Teste les repères caméra avant le duel. L’essai est local et ne crée aucun score.</Text>
+            <EventAction label="Tester l’arbitre caméra" variant="ghost" onPress={() => navigation.navigate("CameraJudgeTest", { formatKey: event.format_key })} />
+          </View>
+        ) : null}
+
         {pub?.result ? (
           <View style={styles.card} accessible accessibilityLabel={`Résultat : ${nameA} ${pub.result.score_a}, ${nameB} ${pub.result.score_b}`}>
             <Text style={styles.cardTitle}>Résultat</Text>
