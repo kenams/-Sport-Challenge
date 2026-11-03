@@ -230,45 +230,115 @@ export default function ProposeEventScreen({ navigation, route }: any) {
                 <View style={styles.dateRow}>
                   {(["day", "month", "year", "hour", "minute"] as const).map((key) => {
                     const labels = { day: "Jour", month: "Mois", year: "Année", hour: "Heure", minute: "Min" };
-                    const placeholders = { day: "JJ", month: "MM…4939 tokens truncated…ok: false; error: string };
+                    const placeholders = { day: "JJ", month: "MM", year: "AAAA", hour: "HH", minute: "MM" };
+                    return <Field key={key} label={labels[key]} value={fieldRows[index]?.[key] ?? ""} onChange={(v) => setFieldRows((rows) => rows.map((row, i) => i === index ? { ...row, [key]: v } : row))} placeholder={placeholders[key]} max={key === "year" ? 4 : 2} wide={key === "year"} />;
+                  })}
+                </View>
+              )}
+              {slotResults[index]?.ok ? <Text style={styles.preview}>{formatTimeFr(slotResults[index].iso, timezone.trim())}</Text> : slotResults[index] && !slotResults[index]!.ok ? <Text style={styles.error}>{(slotResults[index] as { ok: false; error: string }).error}</Text> : null}
+            </View>
+          ))}
+          {slotParts.length < 3 ? <Pressable accessibilityRole="button" onPress={() => {
+            if (Platform.OS === "web") setWebValues((values) => [...values, ""]);
+            else setFieldRows((rows) => [...rows, { day: "", month: "", year: "", hour: "", minute: "" }]);
+          }}><Text style={styles.addSlot}>+ Ajouter un créneau</Text></Pressable> : null}
+          <Text style={styles.label}>Ton fuseau horaire pour choisir l’heure</Text>
+          <TextInput
+            value={timezone}
+            onChangeText={setTimezone}
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel="Fuseau horaire"
+            placeholder="Europe/Paris"
+            placeholderTextColor={COLORS.textMuted}
+            style={[styles.input, !tzOk ? styles.inputError : null]}
+          />
+          {dateError ? <Text style={styles.error}>{dateError}</Text> : null}
+          <Text style={styles.hint}>Chaque heure est enregistrée comme un instant unique et convertie dans le fuseau de ton adversaire.</Text>
+        </Section>
 
-export function partsToIso(parts: LocalParts, tz: string, now: number = Date.now()): ParseResult {
-  const { year, month, day, hour, minute } = parts;
-  const all = [year, month, day, hour, minute];
-  if (all.some((n) => !Number.isInteger(n))) return { ok: false, error: "Renseigne tous les champs de date et d'heure avec des nombres." };
-  if (year < 2020 || year > 2100) return { ok: false, error: "Année invalide." };
-  if (month < 1 || month > 12) return { ok: false, error: "Mois invalide (1 à 12)." };
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return { ok: false, error: "Heure invalide (0 à 23 h, 0 à 59 min)." };
-  const check = new Date(Date.UTC(year, month - 1, day));
-  if (check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return { ok: false, error: "Ce jour n'existe pas dans ce mois." };
-  if (!isValidTimezone(tz)) return { ok: false, error: "Fuseau horaire inconnu (exemple : Europe/Paris)." };
-  const zone = tz.trim();
-  const guess = Date.UTC(year, month - 1, day, hour, minute);
-  let ts = guess - tzOffsetMs(guess, zone);
-  ts = guess - tzOffsetMs(ts, zone);
-  // Vérification aller-retour : au passage à l'heure d'été, certaines heures n'existent pas.
-  if (ts + tzOffsetMs(ts, zone) !== guess) {
-    return { ok: false, error: "Cette heure n'existe pas dans ce fuseau à cause du changement d'heure. Choisis une autre heure." };
-  }
-  // Une heure répétée en automne désigne deux instants : demander une heure non ambiguë.
-  const offsets = new Set([-86400000, 0, 86400000].map((delta) => tzOffsetMs(ts + delta, zone)));
-  const matches = [...offsets].filter((offset) => {
-    const candidate = guess - offset;
-    return candidate + tzOffsetMs(candidate, zone) === guess;
-  });
-  if (matches.length > 1) return { ok: false, error: "Cette heure se produit deux fois lors du changement d'heure. Choisis une autre heure pour éviter toute confusion." };
-  if (ts < now + 30 * 60 * 1000) return { ok: false, error: "Choisis un créneau au moins 30 minutes à l'avance." };
-  if (ts > now + 14 * 24 * 60 * 60 * 1000) return { ok: false, error: "Un duel direct doit être programmé dans les 14 prochains jours." };
-  return { ok: true, iso: new Date(ts).toISOString() };
+        {needAuth || (ready && !uid && formError) ? (
+          <EventAuthPrompt reason="Connecte-toi pour envoyer ta proposition." onLogin={() => navigation.navigate("Login")} onRegister={() => navigation.navigate("Register")} />
+        ) : null}
+        {formError ? (
+          <Text style={styles.error} accessibilityRole="alert">
+            {formError}
+          </Text>
+        ) : null}
+        {!ready ? <ActivityIndicator color={COLORS.primary} /> : null}
+        <EventAction label="Envoyer la proposition" onPress={submit} busy={submitting} disabled={!ready} />
+      </ScrollView>
+    </ScreenContainer>
+  );
 }
 
-/** Valeur d'un champ datetime-local : "AAAA-MM-JJTHH:mm". */
-export function parseDatetimeLocal(value: string): LocalParts | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value.trim());
-  if (!m) return null;
-  return { year: +m[1], month: +m[2], day: +m[3], hour: +m[4], minute: +m[5] };
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.card}>
+      <Text style={styles.cardTitle} accessibilityRole="header">
+        {title}
+      </Text>
+      {children}
+    </View>
+  );
 }
 
-export function toInt(text: string): number {
-  return /^\d{1,4}$/.test(text.trim()) ? parseInt(text.trim(), 10) : NaN;
+function Choice({ selected, title, subtitle, onPress }: { selected: boolean; title: string; subtitle: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={title}
+      style={[styles.choice, selected ? styles.choiceOn : null, Platform.OS === "web" ? ({ cursor: "pointer" } as any) : null]}
+    >
+      <Text style={styles.name}>{title}</Text>
+      <Text style={styles.hint}>{subtitle}</Text>
+    </Pressable>
+  );
 }
+
+function Field({ label, value, onChange, placeholder, max, wide }: { label: string; value: string; onChange: (v: string) => void; placeholder: string; max: number; wide?: boolean }) {
+  return (
+    <View style={{ flexGrow: wide ? 1.4 : 1, flexBasis: wide ? 76 : 54 }}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={(v) => onChange(v.replace(/\D/g, "").slice(0, max))}
+        keyboardType="number-pad"
+        maxLength={max}
+        placeholder={placeholder}
+        placeholderTextColor={COLORS.textMuted}
+        accessibilityLabel={label}
+        style={[styles.input, { textAlign: "center", paddingHorizontal: 4 }]}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { paddingBottom: 90, gap: 14 },
+  title: { ...TYPO.display, color: COLORS.text, fontSize: 24 },
+  hint: { color: COLORS.textMuted, fontSize: 13, lineHeight: 18 },
+  text: { color: COLORS.text, fontSize: 14, lineHeight: 20 },
+  card: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 10 },
+  cardTitle: { color: COLORS.primary, fontSize: 13, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
+  choice: { padding: 14, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, gap: 2, minHeight: 56 },
+  choiceOn: { borderColor: COLORS.primary, backgroundColor: "rgba(212,175,55,0.1)", borderWidth: 2 },
+  name: { color: COLORS.text, fontSize: 16, fontWeight: "800" },
+  chosen: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  searchRow: { flexDirection: "row", gap: 8, alignItems: "stretch" },
+  input: { minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, color: COLORS.text, paddingHorizontal: 12, fontSize: 16 },
+  inputError: { borderColor: "#F87171" },
+  result: { minHeight: 52, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, justifyContent: "center" },
+  dateRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  slotBlock: { gap: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  slotHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  removeSlot: { color: "#F87171", fontSize: 13, fontWeight: "700" },
+  addSlot: { color: COLORS.primary, fontSize: 14, fontWeight: "800", paddingVertical: 4 },
+  label: { color: COLORS.textMuted, fontSize: 12, fontWeight: "700", marginBottom: 4 },
+  preview: { color: COLORS.success, fontSize: 14, fontWeight: "700" },
+  error: { color: "#F87171", fontSize: 14, lineHeight: 20 },
+  success: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: "rgba(52,211,153,0.4)", backgroundColor: "rgba(52,211,153,0.08)", gap: 6 },
+  successTitle: { color: COLORS.success, fontSize: 17, fontWeight: "900" },
+});
