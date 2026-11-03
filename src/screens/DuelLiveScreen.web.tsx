@@ -5,6 +5,7 @@ import { useRoute } from "@react-navigation/native";
 import { FontAwesome5 } from "@expo/vector-icons";
 import ScreenContainer from "../components/ScreenContainer";
 import UserAvatar from "../components/UserAvatar";
+import { DuelPoseJudge, type PoseFeedback } from "../live/duelPoseJudge.web";
 import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
 
@@ -45,8 +46,11 @@ export default function DuelLiveScreen({ navigation }: any) {
   const localVideo = useRef<HTMLDivElement | null>(null);
   const playerAVideo = useRef<HTMLDivElement | null>(null);
   const playerBVideo = useRef<HTMLDivElement | null>(null);
+  const poseOverlay = useRef<HTMLDivElement | null>(null);
   const audioContainer = useRef<HTMLDivElement | null>(null);
   const roomRef = useRef<Room | null>(null);
+  const poseJudgeRef = useRef<DuelPoseJudge | null>(null);
+  const repRequestRef = useRef(false);
   const [event, setEvent] = useState<EventRow | null>(null);
   const [scores, setScores] = useState<Record<string, PlayerScore>>({});
   const [players, setPlayers] = useState<Record<string, PlayerCard>>({});
@@ -65,6 +69,8 @@ export default function DuelLiveScreen({ navigation }: any) {
   const [reviewB, setReviewB] = useState("");
   const [reviewNote, setReviewNote] = useState("");
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [poseFeedback, setPoseFeedback] = useState<PoseFeedback | null>(null);
+  const [poseMode, setPoseMode] = useState<"choose" | "camera" | "manual">("choose");
 
   const loadScores = useCallback(async () => {
     if (!eventId) return;
@@ -258,17 +264,70 @@ export default function DuelLiveScreen({ navigation }: any) {
     return a === b ? [] : [a > b ? event.player_a : event.player_b];
   }, [event, scores]);
 
-  const addRep = async () => {
-    if (!event || !isPlayer || busyRep) return;
+  const addRep = useCallback(async () => {
+    if (!event || !isPlayer || busyRep || repRequestRef.current) return false;
+    repRequestRef.current = true;
     setBusyRep(true);
     const { data, error } = await supabase.rpc("increment_duel_live_rep", { p_event_id: event.id });
+    repRequestRef.current = false;
     setBusyRep(false);
     if (error) {
       setMessage("Répétition non ajoutée. Attends un instant et réessaie.");
-      return;
+      return false;
     }
     setScores((current) => ({ ...current, [uid!]: { event_id: event.id, user_id: uid!, repetitions: Number(data), updated_at: new Date().toISOString() } }));
-  };
+    return true;
+  }, [busyRep, event, isPlayer, uid]);
+
+  const addRepRef = useRef(addRep);
+  addRepRef.current = addRep;
+
+  useEffect(() => {
+    if (!connected || !isPlayer || !event || event.status !== "live" || !uid || poseMode !== "camera") return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let judge: DuelPoseJudge | null = null;
+    let overlay: HTMLDivElement | null = null;
+    let canvas: HTMLCanvasElement | null = null;
+    const attach = () => {
+      if (cancelled) return;
+      const video = localVideo.current?.querySelector("video") ?? null;
+      overlay = poseOverlay.current;
+      if (!video || !overlay || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        timer = setTimeout(attach, 150);
+        return;
+      }
+      canvas = document.createElement("canvas");
+      canvas.className = "duel-pose-overlay";
+      canvas.setAttribute("aria-label", "Repères de l’analyse caméra");
+      canvas.style.position = "absolute";
+      canvas.style.inset = "0";
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+      canvas.style.pointerEvents = event.format_key === "pullups_max" ? "auto" : "none";
+      canvas.style.cursor = event.format_key === "pullups_max" ? "crosshair" : "default";
+      overlay.replaceChildren(canvas);
+      judge = new DuelPoseJudge(
+        video,
+        canvas,
+        event.format_key === "pushups_60s" ? "pushup" : "pullup",
+        countFor(uid),
+        () => addRepRef.current(),
+        setPoseFeedback,
+      );
+      poseJudgeRef.current = judge;
+      void judge.start();
+    };
+    attach();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      judge?.dispose();
+      if (poseJudgeRef.current === judge) poseJudgeRef.current = null;
+      if (canvas && overlay?.contains(canvas)) overlay.removeChild(canvas);
+      setPoseFeedback(null);
+    };
+  }, [connected, event?.format_key, event?.status, isPlayer, poseMode, uid]);
 
   const sendReaction = async (emoji: string) => {
     const room = roomRef.current;
@@ -327,8 +386,8 @@ export default function DuelLiveScreen({ navigation }: any) {
         <Text style={styles.subheading}>{event.format_key === "pushups_60s" ? "Pompes" : "Tractions"} · les répétitions affichées sont provisoires</Text>
 
         <View style={styles.videoGrid}>
-          <VideoCard label={a.pseudo ?? "Joueur 1"} avatar={a.avatar_url} count={p1} target={target} leader={leaders.includes(event.player_a)} ready={videoReady[event.player_a] ?? false} videoRef={uid === event.player_a ? localVideo : playerAVideo} />
-          <VideoCard label={b.pseudo ?? "Joueur 2"} avatar={b.avatar_url} count={p2} target={target} leader={leaders.includes(event.player_b)} ready={videoReady[event.player_b] ?? false} videoRef={uid === event.player_b ? localVideo : playerBVideo} />
+          <VideoCard label={a.pseudo ?? "Joueur 1"} avatar={a.avatar_url} count={p1} target={target} leader={leaders.includes(event.player_a)} ready={videoReady[event.player_a] ?? false} videoRef={uid === event.player_a ? localVideo : playerAVideo} local={uid === event.player_a} overlayRef={uid === event.player_a ? poseOverlay : null} feedback={uid === event.player_a ? poseFeedback : null} />
+          <VideoCard label={b.pseudo ?? "Joueur 2"} avatar={b.avatar_url} count={p2} target={target} leader={leaders.includes(event.player_b)} ready={videoReady[event.player_b] ?? false} videoRef={uid === event.player_b ? localVideo : playerBVideo} local={uid === event.player_b} overlayRef={uid === event.player_b ? poseOverlay : null} feedback={uid === event.player_b ? poseFeedback : null} />
           <View pointerEvents="none" style={styles.reactionFloat}>{reactions.slice(-3).map((item) => <Text key={item.id} style={styles.reaction}>{item.emoji}</Text>)}</View>
         </View>
 
@@ -363,9 +422,40 @@ export default function DuelLiveScreen({ navigation }: any) {
         ) : null}
 
         {isPlayer && event.status === "live" && !officialResult ? (
-          <Pressable onPress={addRep} disabled={busyRep} accessibilityRole="button" accessibilityLabel="Ajouter une répétition provisoire" style={[styles.repButton, busyRep ? { opacity: 0.65 } : null]}>
-            <FontAwesome5 name="plus" size={18} color={COLORS.background} /><Text style={styles.repButtonText}>+1 répétition · {myScore}</Text>
-          </Pressable>
+          <View style={styles.cameraJudgeCard}>
+            <View style={styles.cameraJudgeHeader}><FontAwesome5 name="robot" size={14} color={COLORS.primary} /><Text style={styles.cameraJudgeTitle}>ARBITRE CAMÉRA · BÊTA</Text><Text style={styles.cameraJudgeCount}>{myScore} reps</Text></View>
+            {poseMode === "choose" ? (
+              <>
+                <Text style={styles.cameraJudgeMessage}>Choisis comment compter tes répétitions.</Text>
+                <Text style={styles.note}>L’analyse s’exécute dans ton navigateur avec MediaPipe. Ta vidéo reste diffusée aux participants du live ; MediaPipe peut envoyer des statistiques d’utilisation, mais pas les images analysées.</Text>
+                <Pressable onPress={() => setPoseMode("camera")} accessibilityRole="button" style={styles.cameraOption}>
+                  <FontAwesome5 name="camera" size={15} color={COLORS.background} /><Text style={styles.repButtonText}>Activer l’arbitre caméra</Text>
+                </Pressable>
+                <Pressable onPress={() => setPoseMode("manual")} accessibilityRole="button" style={styles.cameraManualOption}>
+                  <Text style={styles.cameraManualText}>Continuer au comptage manuel</Text>
+                </Pressable>
+              </>
+            ) : null}
+            {poseMode === "camera" ? (
+              <>
+                <Text style={[styles.cameraJudgeMessage, poseFeedback?.kind === "correct" || poseFeedback?.kind === "not-visible" || poseFeedback?.kind === "error" ? styles.cameraJudgeCorrection : poseFeedback?.kind === "good" ? styles.cameraJudgeGood : null]}>
+                  {poseFeedback?.message ?? "Connexion de la caméra et préparation de l’analyse…"}
+                </Text>
+                {event.format_key === "pullups_max" ? <Text style={styles.note}>Pour les tractions, touche la vidéo à la hauteur de la barre pour placer le repère jaune.</Text> : null}
+                <Text style={styles.note}>Le comptage caméra est provisoire. Le modérateur valide le score officiel.</Text>
+                {poseFeedback?.kind === "error" ? <Pressable onPress={() => setPoseMode("manual")} accessibilityRole="button" style={styles.cameraManualOption}><Text style={styles.cameraManualText}>Passer au comptage manuel</Text></Pressable> : null}
+              </>
+            ) : null}
+            {poseMode === "manual" ? (
+              <>
+                <Text style={styles.note}>Comptage manuel activé. Le score affiché reste provisoire jusqu’à la validation du modérateur.</Text>
+                <Pressable onPress={() => { void addRep(); }} disabled={busyRep} accessibilityRole="button" accessibilityLabel="Ajouter une répétition provisoire" style={[styles.repButton, busyRep ? { opacity: 0.65 } : null]}>
+                  <FontAwesome5 name="plus" size={16} color={COLORS.background} /><Text style={styles.repButtonText}>+1 répétition</Text>
+                </Pressable>
+                <Pressable onPress={() => setPoseMode("camera")} accessibilityRole="button" style={styles.cameraManualOption}><Text style={styles.cameraManualText}>Essayer l’arbitre caméra</Text></Pressable>
+              </>
+            ) : null}
+          </View>
         ) : event.status === "live" ? <Text style={styles.audienceNote}>{isPlayer ? "Le score officiel est validé." : "Tu regardes le duel. Réagis et encourage les joueurs."}</Text> : null}
 
         {event.status === "live" ? <View style={styles.reactionRow}>{REACTIONS.map((emoji) => <Pressable key={emoji} onPress={() => sendReaction(emoji)} accessibilityRole="button" accessibilityLabel={`Envoyer ${emoji}`} style={styles.reactionButton}><Text style={styles.reactionButtonText}>{emoji}</Text></Pressable>)}</View> : null}
@@ -375,15 +465,17 @@ export default function DuelLiveScreen({ navigation }: any) {
   );
 }
 
-function VideoCard({ label, avatar, count, target, leader, ready, videoRef }: { label: string; avatar: string | null; count: number; target: number; leader: boolean; ready: boolean; videoRef: React.RefObject<HTMLDivElement | null> }) {
+function VideoCard({ label, avatar, count, target, leader, ready, videoRef, local, overlayRef, feedback }: { label: string; avatar: string | null; count: number; target: number; leader: boolean; ready: boolean; videoRef: React.RefObject<HTMLDivElement | null>; local: boolean; overlayRef: React.RefObject<HTMLDivElement | null> | null; feedback: PoseFeedback | null }) {
   return (
     <View style={styles.videoCard}>
       <View style={styles.videoFrame}>
         <View ref={videoRef as any} style={styles.videoSurface} />
+        {local ? <View ref={overlayRef as any} pointerEvents="box-none" style={styles.poseOverlay} /> : null}
         {!ready ? <View style={styles.waiting}><UserAvatar uri={avatar} label={label} size={42} /><Text style={styles.waitingText}>Caméra en attente…</Text></View> : null}
       </View>
       <View style={styles.videoMeta}><Text numberOfLines={1} style={styles.playerLabel}>{label}</Text><Text style={[styles.videoCount, leader ? styles.leaderCount : null]}>{count} <Text style={styles.videoTarget}>/ {target}</Text></Text></View>
       <View style={styles.miniTrack}><View style={[styles.miniFill, { width: `${Math.min(100, (count / target) * 100)}%`, backgroundColor: leader ? COLORS.primary : "#38BDF8" }]} /></View>
+      {local && feedback ? <Text style={[styles.cameraMiniFeedback, feedback.kind === "good" ? styles.cameraJudgeGood : feedback.kind === "correct" || feedback.kind === "not-visible" || feedback.kind === "error" ? styles.cameraJudgeCorrection : null]}>{feedback.message}</Text> : null}
     </View>
   );
 }
@@ -409,6 +501,7 @@ const styles = StyleSheet.create({
   videoCard: { flex: 1, minWidth: 0, overflow: "hidden", borderRadius: 15, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card },
   videoFrame: { width: "100%", aspectRatio: 0.82, backgroundColor: "#09090B", justifyContent: "center", alignItems: "center", overflow: "hidden" },
   videoSurface: { width: "100%", height: "100%", position: "absolute", top: 0, left: 0 } as any,
+  poseOverlay: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%", zIndex: 3 } as any,
   hiddenAudio: { width: 0, height: 0, overflow: "hidden" },
   waiting: { position: "absolute", alignItems: "center", gap: 8 },
   waitingText: { color: COLORS.textMuted, fontSize: 10 },
@@ -419,6 +512,7 @@ const styles = StyleSheet.create({
   videoTarget: { color: COLORS.textMuted, fontSize: 10, fontWeight: "600" },
   miniTrack: { height: 4, margin: 10, borderRadius: 4, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.09)" },
   miniFill: { height: "100%", borderRadius: 4 },
+  cameraMiniFeedback: { color: COLORS.textMuted, fontSize: 10, lineHeight: 14, paddingHorizontal: 9, paddingBottom: 8 },
   reactionFloat: { position: "absolute", right: 18, bottom: 38, gap: 4 },
   reaction: { fontSize: 28 },
   progressCard: { padding: 16, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.card, gap: 12 },
@@ -434,6 +528,16 @@ const styles = StyleSheet.create({
   fill: { height: "100%", borderRadius: 8 },
   leaderText: { color: COLORS.primary, fontSize: 13, fontWeight: "900" },
   note: { color: COLORS.textMuted, fontSize: 11, lineHeight: 16 },
+  cameraJudgeCard: { padding: 15, borderRadius: 15, borderWidth: 1, borderColor: "rgba(212,175,55,0.35)", backgroundColor: "rgba(212,175,55,0.07)", gap: 9 },
+  cameraJudgeHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  cameraJudgeTitle: { flex: 1, color: COLORS.primary, fontSize: 11, fontWeight: "900", letterSpacing: 0.7 },
+  cameraJudgeCount: { color: COLORS.text, fontSize: 14, fontWeight: "900" },
+  cameraJudgeMessage: { color: COLORS.text, fontSize: 14, fontWeight: "800", lineHeight: 20 },
+  cameraJudgeGood: { color: COLORS.success },
+  cameraJudgeCorrection: { color: "#FBBF24" },
+  cameraOption: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 9, borderRadius: 13, backgroundColor: COLORS.primary },
+  cameraManualOption: { minHeight: 38, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: COLORS.border },
+  cameraManualText: { color: COLORS.textMuted, fontSize: 12, fontWeight: "700" },
   repButton: { minHeight: 50, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 14, backgroundColor: COLORS.primary },
   repButtonText: { color: COLORS.background, fontWeight: "900", fontSize: 15 },
   audienceNote: { textAlign: "center", color: COLORS.textMuted, fontSize: 12 },
