@@ -2,6 +2,7 @@
   "expo": {
     "name": "IMMORTAL ARENA",
     "slug": "sport-challenge-app",
+    "scheme": "immortal",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/immortal-k-logo.png",
@@ -68,7 +69,9 @@
           "defaultChannel": "default",
           "sounds": []
         }
-      ]
+      ],
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc"
     ]
   }
 }
