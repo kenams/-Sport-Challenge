@@ -8,6 +8,7 @@ import ScreenContainer from "../components/ScreenContainer";
 import UserAvatar from "../components/UserAvatar";
 import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
+import { liveVideoErrorMessage } from "../domain/liveVideoErrors";
 
 registerGlobals();
 
@@ -86,7 +87,13 @@ export default function DuelLiveScreen({ navigation }: any) {
         const { data: tokenData, error: tokenError } = await supabase.functions.invoke("duel-live-token", { body: { event_id: eventId } });
         if (!alive) return;
         if (tokenError || !tokenData?.server_url || !tokenData?.participant_token) {
-          setMessage(tokenData?.error === "live_video_not_configured" ? "La vidéo live n’est pas configurée sur le serveur." : "Connexion vidéo impossible. Réessaie dans un instant.");
+          let errorCode = tokenData?.error as string | undefined;
+          const response = (tokenError as unknown as { context?: Response } | null)?.context;
+          if (!errorCode && response && typeof response.clone === "function") {
+            const body = await response.clone().json().catch(() => null) as { error?: string } | null;
+            errorCode = body?.error;
+          }
+          setMessage(liveVideoErrorMessage(errorCode));
           setLoading(false);
           return;
         }

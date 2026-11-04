@@ -16,6 +16,7 @@ import type {
   TerritoryScope,
 } from "../domain/types";
 import { FALLBACK_FORMATS } from "../domain/formats";
+import { playerSearchPattern } from "../domain/playerSearch";
 
 export type ApiResult<T> = { data: T | null; error: string | null };
 
@@ -162,11 +163,13 @@ export async function getPlayerLevel(userId: string): Promise<number | null> {
 }
 
 export async function searchPlayers(query: string): Promise<ApiResult<Array<{ user_id: string; pseudo: string | null; city: string | null; level: number | null }>>> {
+  const pattern = playerSearchPattern(query);
+  if (!pattern) return { data: [], error: null };
   const profiles = await wrap<Array<{ user_id: string; pseudo: string | null; city: string | null }>>(() =>
     supabase
       .from("profiles")
       .select("user_id,pseudo,city")
-      .ilike("pseudo", `%${query.replace(/[%_]/g, " ").trim()}%`)
+      .ilike("pseudo", pattern)
       .limit(8)
   );
   if (profiles.error || !profiles.data?.length) return { data: profiles.data?.map((p) => ({ ...p, level: null })) ?? [], error: profiles.error };
