@@ -8,6 +8,7 @@ import UserAvatar from "../components/UserAvatar";
 import { DuelPoseJudge, type PoseFeedback } from "../live/duelPoseJudge.web";
 import { COLORS, TYPO } from "../theme";
 import { supabase } from "../supabase";
+import { liveVideoErrorMessage } from "../domain/liveVideoErrors";
 
 type EventRow = {
   id: string;
@@ -114,7 +115,13 @@ export default function DuelLiveScreen({ navigation }: any) {
 
       const { data: tokenData, error: tokenError } = await supabase.functions.invoke("duel-live-token", { body: { event_id: eventId } });
       if (tokenError || !tokenData?.server_url || !tokenData?.participant_token) {
-        setMessage(tokenData?.error === "live_video_not_configured" ? "La vidéo live n’est pas encore configurée." : "Connexion vidéo impossible. Réessaie dans un instant.");
+        let errorCode = tokenData?.error as string | undefined;
+        const response = (tokenError as unknown as { context?: Response } | null)?.context;
+        if (!errorCode && response && typeof response.clone === "function") {
+          const body = await response.clone().json().catch(() => null) as { error?: string } | null;
+          errorCode = body?.error;
+        }
+        if (alive) setMessage(liveVideoErrorMessage(errorCode, response?.status));
         setLoading(false);
         return;
       }
