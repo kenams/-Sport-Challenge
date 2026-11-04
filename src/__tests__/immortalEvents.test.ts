@@ -12,7 +12,8 @@ describe("eventTime", () => {
     expect(r).toEqual({ ok: true, iso: "2026-11-02T19:00:00.000Z" });
   });
   it("convertit une heure de Paris en été (UTC+2)", () => {
-    const r = partsToIso({ year: 2027, month: 7, day: 14, hour: 20, minute: 30 }, "Europe/Paris", NOW);
+    const now = Date.UTC(2027, 6, 1, 12, 0, 0);
+    const r = partsToIso({ year: 2027, month: 7, day: 14, hour: 20, minute: 30 }, "Europe/Paris", now);
     expect(r).toEqual({ ok: true, iso: "2027-07-14T18:30:00.000Z" });
   });
   it("refuse une date passée", () => {
@@ -118,21 +119,25 @@ describe("pro", () => {
 
 
 describe("dates de duel aux changements d'heure", () => {
+  const beforeSpringChange = Date.UTC(2027, 2, 20, 12, 0, 0);
+  const beforeAutumnChange = Date.UTC(2027, 9, 20, 12, 0, 0);
+  const beforeIndiaDate = Date.UTC(2026, 11, 20, 12, 0, 0);
+
   it("refuse une heure inexistante à Paris", () => {
-    const result = partsToIso({ year: 2027, month: 3, day: 28, hour: 2, minute: 30 }, "Europe/Paris", NOW);
+    const result = partsToIso({ year: 2027, month: 3, day: 28, hour: 2, minute: 30 }, "Europe/Paris", beforeSpringChange);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("n'existe pas");
   });
   it("refuse une heure ambiguë à Paris", () => {
-    const result = partsToIso({ year: 2027, month: 10, day: 31, hour: 2, minute: 30 }, "Europe/Paris", NOW);
+    const result = partsToIso({ year: 2027, month: 10, day: 31, hour: 2, minute: 30 }, "Europe/Paris", beforeAutumnChange);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain("deux fois");
   });
   it("accepte une heure valide après le saut d'heure", () => {
-    expect(partsToIso({ year: 2027, month: 3, day: 28, hour: 3, minute: 30 }, "Europe/Paris", NOW)).toEqual({ ok: true, iso: "2027-03-28T01:30:00.000Z" });
+    expect(partsToIso({ year: 2027, month: 3, day: 28, hour: 3, minute: 30 }, "Europe/Paris", beforeSpringChange)).toEqual({ ok: true, iso: "2027-03-28T01:30:00.000Z" });
   });
   it("gère un décalage de trente minutes sans décaler le rendez-vous", () => {
-    expect(partsToIso({ year: 2027, month: 1, day: 2, hour: 20, minute: 0 }, "Asia/Kolkata", NOW)).toEqual({ ok: true, iso: "2027-01-02T14:30:00.000Z" });
+    expect(partsToIso({ year: 2027, month: 1, day: 2, hour: 20, minute: 0 }, "Asia/Kolkata", beforeIndiaDate)).toEqual({ ok: true, iso: "2027-01-02T14:30:00.000Z" });
   });
   it("refuse une chaîne avec un suffixe non valide", () => {
     expect(parseDatetimeLocal("2027-01-02T20:00garbage")).toBeNull();
