@@ -93,7 +93,7 @@ export default function DuelLiveScreen({ navigation }: any) {
             const body = await response.clone().json().catch(() => null) as { error?: string } | null;
             errorCode = body?.error;
           }
-          setMessage(liveVideoErrorMessage(errorCode));
+          setMessage(liveVideoErrorMessage(errorCode, response?.status));
           setLoading(false);
           return;
         }
