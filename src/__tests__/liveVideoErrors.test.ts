@@ -10,6 +10,11 @@ describe("liveVideoErrorMessage", () => {
     expect(liveVideoErrorMessage("live_event_not_started")).toContain("30 minutes");
   });
 
+  it("explains a server 503 without blaming the camera", () => {
+    expect(liveVideoErrorMessage(undefined, 503)).toContain("LiveKit");
+    expect(liveVideoErrorMessage(undefined, 503)).toContain("envoyer une vidéo");
+  });
+
   it("keeps a useful fallback for unexpected failures", () => {
     expect(liveVideoErrorMessage()).toContain("serveur live");
   });
