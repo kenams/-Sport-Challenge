@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import ScreenContainer from "../components/ScreenContainer";
 import ErrorState from "../components/immortal/ErrorState";
 import EventAction from "../components/immortal/EventAction";
@@ -43,6 +43,7 @@ export default function ProScreen({ navigation }: any) {
   const [elapsed, setElapsed] = useState(0);
   const [billingBusy, setBillingBusy] = useState<CheckoutPlan | "portal" | null>(null);
   const [billingMsg, setBillingMsg] = useState<string | null>(null);
+  const [waiver, setWaiver] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -180,11 +181,26 @@ export default function ProScreen({ navigation }: any) {
           <Text style={styles.cardTitle}>{web.available && !pro ? "S'abonner à Pro" : "Tarifs envisagés"}</Text>
           {web.available && !pro ? (
             <>
-              <Text style={styles.sub}>Tu seras redirigé vers la page de paiement sécurisée de Stripe. Tu peux résilier depuis cet écran. Le paiement n'achète aucun avantage sportif.</Text>
+              <Text style={styles.sub}>4,99 € par mois ou 39,99 € par an, prix TTC (TVA non applicable, article 293 B du CGI). Sans engagement : renouvellement automatique, résiliation à tout moment depuis cet écran, effective à la fin de la période payée. Paiement sécurisé par Stripe. Le paiement n'achète aucun avantage sportif.</Text>
               {uid ? (
                 <>
-                  <EventAction label={PLAN_LABELS.monthly} onPress={() => goTo(startCheckout("monthly"), "monthly")} busy={billingBusy === "monthly"} disabled={billingBusy !== null} />
-                  <EventAction label={PLAN_LABELS.annual} variant="ghost" onPress={() => goTo(startCheckout("annual"), "annual")} busy={billingBusy === "annual"} disabled={billingBusy !== null} />
+                  <Pressable
+                    onPress={() => setWaiver((v) => !v)}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: waiver }}
+                    accessibilityLabel="J'accepte les conditions générales de vente et je demande l'accès immédiat à Pro. Je reconnais perdre mon droit de rétractation de 14 jours."
+                    style={styles.consent}
+                    testID="pro-waiver"
+                  >
+                    <View style={[styles.box, waiver ? styles.boxOn : null]}>{waiver ? <Text style={styles.tick}>✓</Text> : null}</View>
+                    <Text style={[styles.free, { flex: 1 }]}>
+                      J'accepte les{" "}
+                      <Text style={styles.link} accessibilityRole="link" onPress={() => Linking.openURL("/cgv.html")}>conditions générales de vente</Text>
+                      {" "}et je demande l'accès immédiat à Pro. Je reconnais perdre mon droit de rétractation de 14 jours.
+                    </Text>
+                  </Pressable>
+                  <EventAction label={PLAN_LABELS.monthly} onPress={() => goTo(startCheckout("monthly", waiver), "monthly")} busy={billingBusy === "monthly"} disabled={billingBusy !== null || !waiver} />
+                  <EventAction label={PLAN_LABELS.annual} variant="ghost" onPress={() => goTo(startCheckout("annual", waiver), "annual")} busy={billingBusy === "annual"} disabled={billingBusy !== null || !waiver} />
                 </>
               ) : (
                 <Text style={styles.lock}>Connecte-toi pour t'abonner.</Text>
@@ -465,6 +481,11 @@ const styles = StyleSheet.create({
   lock: { color: COLORS.text, fontSize: 13, lineHeight: 18, padding: 10, borderRadius: 10, backgroundColor: COLORS.surface },
   err: { color: "#F87171", fontSize: 14, lineHeight: 20 },
   ok: { color: COLORS.success, fontSize: 14, lineHeight: 20 },
+  consent: { flexDirection: "row", gap: 12, alignItems: "flex-start", paddingVertical: 8, minHeight: 48 },
+  box: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: COLORS.border, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  boxOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  tick: { color: "#0B0B0B", fontWeight: "900", fontSize: 15, lineHeight: 18 },
+  link: { color: COLORS.primary, textDecorationLine: "underline" },
   group: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, minHeight: 52, gap: 2 },
   gName: { color: COLORS.text, fontSize: 15, fontWeight: "800" },
   board: { padding: 12, borderRadius: 12, backgroundColor: COLORS.surface, gap: 8 },

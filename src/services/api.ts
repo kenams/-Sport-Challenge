@@ -453,7 +453,7 @@ async function callBilling(name: "create-checkout-session" | "customer-portal", 
 }
 
 /** Demande au serveur une session de paiement Stripe (web). Renvoie l'URL de la page de paiement ; rien n'est débité ici. */
-export const startCheckout = (plan: CheckoutPlan) => callBilling("create-checkout-session", { plan });
+export const startCheckout = (plan: CheckoutPlan, waiver: boolean) => callBilling("create-checkout-session", { plan, waiver });
 
 /** Demande au serveur l'URL du portail client Stripe (gérer le moyen de paiement, résilier). */
 export const openBillingPortal = () => callBilling("customer-portal", {});

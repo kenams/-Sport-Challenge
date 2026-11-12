@@ -60,6 +60,7 @@ const BILLING_MESSAGES: Record<string, string> = {
   not_authenticated: "Connecte-toi pour t'abonner.",
   invalid_plan: "Formule inconnue. Choisis mensuel ou annuel.",
   already_pro: "Tu as déjà un abonnement Pro actif.",
+  waiver_required: "Coche la case d'accord (conditions de vente et accès immédiat) pour continuer.",
   no_customer: "Aucun abonnement web trouvé pour ce compte. Si tu as souscrit via une boutique, gère-le dans la boutique.",
   billing_unavailable: "Le paiement n'est pas disponible pour le moment. Aucun paiement n'a été effectué.",
   stripe_error: "Le service de paiement est indisponible. Aucun paiement n'a été effectué. Réessaie plus tard.",

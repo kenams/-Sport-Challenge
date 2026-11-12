@@ -102,7 +102,7 @@ async function postToStripe(path: string, form: URLSearchParams, deps: BillingDe
 }
 
 /** Crée une session Checkout en mode abonnement. `email` sert uniquement à préremplir quand aucun client Stripe n'est connu. */
-export async function createCheckoutSession(input: { userId: string | null; email?: string | null; plan: unknown }, deps: CheckoutDeps): Promise<BillingResult> {
+export async function createCheckoutSession(input: { userId: string | null; email?: string | null; plan: unknown; waiverAt?: string | null }, deps: CheckoutDeps): Promise<BillingResult> {
   if (!input.userId || !UUID_PATTERN.test(input.userId)) return { ok: false, status: 401, error: "not_authenticated" };
   if (!isPlan(input.plan)) return { ok: false, status: 400, error: "invalid_plan" };
   const origin = validatedOrigin(deps.config.webBaseUrl);
@@ -121,6 +121,11 @@ export async function createCheckoutSession(input: { userId: string | null; emai
   form.set("client_reference_id", input.userId);
   form.set("subscription_data[metadata][user_id]", input.userId);
   form.set("metadata[user_id]", input.userId);
+  if (input.waiverAt) {
+    // Preuve de l'accord CGV + renonciation au délai de rétractation (accès immédiat), horodatée côté serveur.
+    form.set("metadata[cgv_withdrawal_waiver_at]", input.waiverAt);
+    form.set("subscription_data[metadata][cgv_withdrawal_waiver_at]", input.waiverAt);
+  }
   form.set("success_url", `${origin}/Pro?checkout=success`);
   form.set("cancel_url", `${origin}/Pro?checkout=cancel`);
   form.set("locale", "fr");

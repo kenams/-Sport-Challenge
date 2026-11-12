@@ -20,12 +20,15 @@ Deno.serve(async (request) => {
   const authorization = request.headers.get("Authorization") ?? "";
   if (!authorization.startsWith("Bearer ")) return json({ error: "not_authenticated" }, 401);
 
-  let body: { plan?: unknown } = {};
+  let body: { plan?: unknown; waiver?: unknown } = {};
   try {
     body = await request.json();
   } catch {
     return json({ error: "invalid_body" }, 400);
   }
+
+  // Accord exprès obligatoire (CGV + accès immédiat = renonciation au délai de rétractation de 14 jours).
+  if (body?.waiver !== true) return json({ error: "waiver_required" }, 400);
 
   const url = Deno.env.get("SUPABASE_URL")!;
   const asUser = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, {
@@ -37,7 +40,7 @@ Deno.serve(async (request) => {
   const service = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
   const result = await createCheckoutSession(
-    { userId: who.user.id, email: who.user.email ?? null, plan: body?.plan },
+    { userId: who.user.id, email: who.user.email ?? null, plan: body?.plan, waiverAt: new Date().toISOString() },
     {
       config: {
         secretKey: Deno.env.get("STRIPE_SECRET_KEY") ?? "",
