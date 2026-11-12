@@ -1,6 +1,8 @@
 # IMMORTAL Pro — mise en place des abonnements
 
-**État de production (2 novembre 2026)** : l'abonnement web Stripe a été activé à la demande du fondateur. Les fonctions Checkout, Portail et webhook sont déployées sur Supabase ; les secrets de production sont configurés et `WEB_BASE_URL` pointe vers l'application. Aucune transaction réelle n'a été lancée ici. Les prix affichés (4,99 €/mois, 39,99 €/an) doivent encore être confirmés dans Stripe. Les achats iOS/Android restent désactivés.
+**État au 12 novembre 2026 : paiement web LIVE.** Secrets serveur passés en live (clé, prix `price_1UX3srGSZgm5QCNLomeBE8qD` / `price_1UX3tPGSZgm5QCNL5JmaDATD`, webhook live `we_1Ub3QFGSZgm5QCNLelUSt7kL`), `STRIPE_ALLOW_TEST_MODE` retiré, portail live par défaut (résiliation en fin de période). Vérifié : session Checkout live créée depuis la prod (4,99 €), accord CGV/renonciation exigé côté serveur (`waiver_required`) et horodaté dans les métadonnées. Non vérifié : un vrai paiement suivi du webhook (à faire avec un achat réel remboursé). Protection mots de passe compromis : indisponible sur l'offre gratuite Supabase ; à la place, 8 caractères minimum avec lettres et chiffres.
+
+**Ancien état (2 novembre 2026, en réalité resté en mode test)** : l'abonnement web Stripe a été activé à la demande du fondateur. Les fonctions Checkout, Portail et webhook sont déployées sur Supabase ; les secrets de production sont configurés et `WEB_BASE_URL` pointe vers l'application. Aucune transaction réelle n'a été lancée ici. Les prix affichés (4,99 €/mois, 39,99 €/an) doivent encore être confirmés dans Stripe. Les achats iOS/Android restent désactivés.
 
 Le Pro ne donne aucun avantage sportif : statistiques avancées, personnalisation de la carte, groupes privés. Jamais de points, de validation prioritaire ni de meilleur classement.
 

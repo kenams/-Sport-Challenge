@@ -14,7 +14,7 @@ Inscription → choix de l'épreuve → lancer un défi (vidéo) → inviter un 
 - Droits Pro écrits uniquement côté serveur (`apply_entitlement_event`).
 - Suppression de compte (migration `20261102140000`, Edge Function `delete-account`) : profil, performances et vidéos effacés, performances des autres intactes.
 - « Encourager » (un par joueur, retirable) et commentaires de 280 caractères au plus, sur performances validées seulement (migration `20261102150000`) : limites de débit, signalement, masquage par la modération, aucun effet sur points ni classements.
-- Paiement web Stripe activé en production le 02/11/2026 : webhook (`stripe-webhook`), `create-checkout-session`, `customer-portal`. Les achats iOS/Android restent désactivés. Prix affichés à confirmer avant de considérer l'offre prête à vendre. Procédure : `docs/PRO_SETUP.md`.
+- Paiement web Stripe **réel (live)** activé le 12/11/2026 (jusque-là le serveur était resté en mode test) : webhook live `we_1Ub3QFGSZgm5QCNLelUSt7kL`, prix live 4,99 €/mois et 39,99 €/an, case obligatoire CGV + renonciation au droit de rétractation (preuve horodatée dans les métadonnées Stripe), CGV sur `/cgv.html`. Fonctions : `stripe-webhook`, `create-checkout-session`, `customer-portal`. Les achats iOS/Android restent désactivés. Prix affichés à confirmer avant de considérer l'offre prête à vendre. Procédure : `docs/PRO_SETUP.md`.
 
 ## Lancer en local
 ```
