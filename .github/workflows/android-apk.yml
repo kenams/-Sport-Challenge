@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/immortal-apk-build
+      - codex/immortal-polish
   workflow_dispatch:
 
 permissions:
@@ -18,6 +19,8 @@ jobs:
       EXPO_PUBLIC_SUPABASE_URL: https://sjnlilbsqecznpxbqukw.supabase.co
       EXPO_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqbmxpbGJzcWVjem5weGJxdWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0ODg2MDksImV4cCI6MjA3OTA2NDYwOX0.q2-e3zRiXWDHVdj8mQoH036D7qgCgG6PuiV0hrvfIKU
       EXPO_PUBLIC_WEB_BASE_URL: https://immortal-arena.vercel.app
+      EXPO_PUBLIC_DEMO_MODE: "false"
+      EXPO_PUBLIC_SIMPLE_MODE: "true"
     steps:
       - name: Check out source
         uses: actions/checkout@v4
