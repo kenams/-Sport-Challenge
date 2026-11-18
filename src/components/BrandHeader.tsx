@@ -1,4 +1,4 @@
-﻿// src/components/BrandHeader.tsx
+// src/components/BrandHeader.tsx
 import React from "react";
 import { Platform, Text, TouchableOpacity, View } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -12,24 +12,28 @@ const SUBTITLES: Record<string, string> = {
   CameraLab: "Atelier caméra",
   Defis: "Défis",
   Classement: "Records",
-  Evenements: "Événements",
+  Evenements: "Duels",
+  Groupes: "Groupes",
   Profil: "Mon profil",
   CreateChallenge: "Lancer un défi",
   ChallengeDetail: "Détail du défi",
   RespondChallenge: "Répondre au défi",
   Moderation: "Modération",
-  Events: "Événements",
+  Events: "Duels",
   ProposeEvent: "Proposer un duel",
   EventDetail: "Événement",
   PublicEvent: "Duel annoncé",
   Pro: "IMMORTAL Pro",
 };
 
+const TAB_ROOTS = new Set(["Defis", "Classement", "Evenements", "Groupes", "Profil"]);
+
 /** En-tête commun : retour (si possible), marque et titre de l'écran. Aucune action sans effet. */
 export default function BrandHeader() {
   const navigation = useNavigation<any>();
   const route = useRoute();
-  const canGoBack = navigation.canGoBack();
+  // Pas de flèche « retour » sur les onglets principaux : on y navigue avec la barre du bas.
+  const canGoBack = !TAB_ROOTS.has(route.name as string) && navigation.canGoBack();
   const subtitle = SUBTITLES[route.name as string] ?? "Pompes et tractions";
 
   return (

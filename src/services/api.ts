@@ -403,6 +403,8 @@ export const listUpcomingEvents = async (): Promise<ApiResult<DuelEvent[]>> => {
       .from("duel_events")
       .select("*")
       .in("status", ["proposed", "accepted", "scheduled", "live"])
+      // Les duels dont l'heure est passée depuis plus de 6 h ne sont plus « à venir ».
+      .or(`status.eq.live,scheduled_at.is.null,scheduled_at.gte.${new Date(Date.now() - 6 * 3600_000).toISOString()}`)
       .order("scheduled_at", { ascending: true, nullsFirst: false })
       .limit(30)
   );

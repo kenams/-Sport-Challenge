@@ -97,7 +97,7 @@ function RealChallengesScreen({ onSimulate }: { onSimulate: () => void }) {
         <Text style={styles.title} accessibilityRole="header">
           Défis
         </Text>
-        <Text style={styles.lead}>Pompes et tractions. Un défi est lancé avec une vidéo, la modération valide le score.</Text>
+        <Text style={styles.lead}>Filme-toi, l’arbitre IA compte tes répétitions, ton score entre au classement.</Text>
       </View>
 
       {weekly ? (
@@ -105,12 +105,12 @@ function RealChallengesScreen({ onSimulate }: { onSimulate: () => void }) {
           <Text style={styles.weeklyKicker}>Défi de la semaine</Text>
           <Text style={styles.weeklyTitle}>{formatLabel(weekly.format_key)}</Text>
           {weekly.note_fr ? <Text style={styles.weeklyNote}>{weekly.note_fr}</Text> : null}
-          <ActionButton label="Relever ce défi" variant="ghost" fullWidth={false} onPress={() => create(weekly.format_key)} />
+          <ActionButton label="Relever ce défi" onPress={() => create(weekly.format_key)} />
         </View>
       ) : null}
 
       {__DEV__ ? <ActionButton label="Ouvrir la simulation vivante" variant="ghost" onPress={onSimulate} /> : null}
-      <ActionButton label="Lancer un défi" onPress={() => create()} />
+      <ActionButton label={weekly ? "Lancer un autre défi" : "Lancer un défi"} variant={weekly ? "ghost" : undefined} onPress={() => create()} />
       <CommunityActivityFeed />
 
       <View style={styles.filters} accessibilityRole="tablist">

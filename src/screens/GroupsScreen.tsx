@@ -81,6 +81,7 @@ export default function GroupsScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<"private" | "city" | "region">("private");
@@ -261,31 +262,6 @@ export default function GroupsScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Créer ton groupe</Text>
-          <Field value={name} onChangeText={setName} placeholder="Nom du groupe (ex. Les Warriors de Launaguet)" />
-          <Field value={description} onChangeText={setDescription} placeholder="Votre esprit d’équipe (facultatif)" multiline />
-          <Text style={styles.hint}>Recrutement local : seules la ville ou la région de ton profil seront utilisées. Aucun emplacement GPS.</Text>
-          <View style={styles.chips}>
-            {scopeChoices.map((choice) => (
-              <Pressable key={choice.key} onPress={() => setScope(choice.key)} accessibilityRole="button" style={[styles.chip, scope === choice.key ? styles.chipSelected : null]}>
-                <FontAwesome5 name={choice.icon} size={12} color={scope === choice.key ? COLORS.primary : COLORS.textMuted} />
-                <Text style={[styles.chipText, scope === choice.key ? styles.chipTextSelected : null]}>{choice.label}</Text>
-              </Pressable>
-            ))}
-          </View>
-          <Action label={busy ? "Création…" : "Créer un groupe gratuit"} icon="plus" disabled={busy || name.trim().length < 2} onPress={createGroup} />
-          <Text style={styles.hint}>Un groupe créé gratuitement par compte. Les amis peuvent ensuite rejoindre par code.</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Rejoindre avec un code</Text>
-          <View style={styles.inline}>
-            <Field value={inviteCode} onChangeText={setInviteCode} placeholder="Code d’invitation" autoCapitalize="characters" />
-            <Action label="Rejoindre" disabled={busy || !inviteCode.trim()} onPress={joinByCode} />
-          </View>
-        </View>
-
         {loading ? <ActivityIndicator color={COLORS.primary} style={{ marginVertical: 20 }} /> : null}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Mes groupes</Text>
@@ -324,6 +300,35 @@ export default function GroupsScreen() {
             </View>
           ))}
         </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Rejoindre avec un code</Text>
+          <View style={styles.inline}>
+            <Field value={inviteCode} onChangeText={setInviteCode} placeholder="Code d’invitation" autoCapitalize="characters" />
+            <Action label="Rejoindre" disabled={busy || !inviteCode.trim()} onPress={joinByCode} />
+          </View>
+        </View>
+
+        {groups.some((g) => g.owner_id === userId) ? null : !showCreate ? (
+          <Action label="Créer mon groupe" icon="plus" secondary onPress={() => setShowCreate(true)} />
+        ) : (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Créer ton groupe</Text>
+          <Field value={name} onChangeText={setName} placeholder="Nom du groupe (ex. Les Warriors de Launaguet)" />
+          <Field value={description} onChangeText={setDescription} placeholder="Votre esprit d’équipe (facultatif)" multiline />
+          <Text style={styles.hint}>Recrutement local : seules la ville ou la région de ton profil seront utilisées. Aucun emplacement GPS.</Text>
+          <View style={styles.chips}>
+            {scopeChoices.map((choice) => (
+              <Pressable key={choice.key} onPress={() => setScope(choice.key)} accessibilityRole="button" style={[styles.chip, scope === choice.key ? styles.chipSelected : null]}>
+                <FontAwesome5 name={choice.icon} size={12} color={scope === choice.key ? COLORS.primary : COLORS.textMuted} />
+                <Text style={[styles.chipText, scope === choice.key ? styles.chipTextSelected : null]}>{choice.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Action label={busy ? "Création…" : "Créer un groupe gratuit"} icon="plus" disabled={busy || name.trim().length < 2} onPress={createGroup} />
+          <Text style={styles.hint}>Un groupe créé gratuitement par compte. Les amis peuvent ensuite rejoindre par code.</Text>
+        </View>
+        )}
 
         {selected ? (
           <>

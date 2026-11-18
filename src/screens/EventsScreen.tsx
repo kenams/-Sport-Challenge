@@ -50,9 +50,9 @@ export default function EventsScreen({ navigation }: any) {
     <View style={styles.header}>
       <View style={{ flex: 1, minWidth: 200 }}>
         <Text style={styles.title} accessibilityRole="header">
-          Événements
+          Duels
         </Text>
-        <Text style={styles.subtitle}>Les duels annoncés. Un duel n'est confirmé que lorsque les deux joueurs ont accepté.</Text>
+        <Text style={styles.subtitle}>Affronte un joueur en direct. Un duel est confirmé quand les deux joueurs ont accepté.</Text>
       </View>
       <View style={styles.cta}>
         <EventAction label="Trouver un adversaire" onPress={findOpponent} />
