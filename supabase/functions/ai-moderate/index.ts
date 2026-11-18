@@ -50,9 +50,10 @@ const VERDICT_SCHEMA = {
 };
 
 async function uploadToGemini(bytes: Uint8Array, mime: string): Promise<{ uri: string; name: string }> {
-  const start = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${GEMINI_API_KEY}`, {
+  const start = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files`, {
     method: "POST",
     headers: {
+      "x-goog-api-key": GEMINI_API_KEY,
       "X-Goog-Upload-Protocol": "resumable",
       "X-Goog-Upload-Command": "start",
       "X-Goog-Upload-Header-Content-Length": String(bytes.byteLength),
@@ -75,7 +76,7 @@ async function uploadToGemini(bytes: Uint8Array, mime: string): Promise<{ uri: s
   let state = info.file.state;
   for (let i = 0; i < 40 && state === "PROCESSING"; i++) {
     await new Promise((r) => setTimeout(r, 2000));
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${info.file.name}?key=${GEMINI_API_KEY}`);
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${info.file.name}`, { headers: { "x-goog-api-key": GEMINI_API_KEY } });
     state = (await res.json())?.state;
   }
   if (state !== "ACTIVE") throw new Error(`gemini_file_state_${state}`);
@@ -104,10 +105,10 @@ async function analyse(fileUri: string, mime: string, format: Record<string, unk
       if (Date.now() > deadline) throw new Error(`${lastError}_delai_depasse`);
       let res: Response;
       try {
-        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`, {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",
           signal: AbortSignal.timeout(Math.max(5_000, Math.min(40_000, deadline - Date.now()))),
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY },
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ file_data: { mime_type: mime, file_uri: fileUri } }, { text: prompt }] }],
             generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: VERDICT_SCHEMA },
@@ -171,7 +172,7 @@ async function moderate(attemptId: string) {
     return { decision: decision.action, score: decision.score, result };
   } finally {
     // La vidéo n'est pas conservée chez Google.
-    await fetch(`https://generativelanguage.googleapis.com/v1beta/${file.name}?key=${GEMINI_API_KEY}`, { method: "DELETE" }).catch(() => {});
+    await fetch(`https://generativelanguage.googleapis.com/v1beta/${file.name}`, { method: "DELETE", headers: { "x-goog-api-key": GEMINI_API_KEY } }).catch(() => {});
   }
 }
 
@@ -197,12 +198,12 @@ serve(async (req) => {
     try {
       results[id] = await moderate(id);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = (err instanceof Error ? err.message : String(err)).replace(/key=[^&\s)]+/g, "key=REDACTED");
       console.error("[ai-moderate]", id, message);
       try {
-        await admin.rpc("ai_decide_attempt", { p_id: id, p_action: "error", p_reason: message.slice(0, 300), p_summary: message.slice(0, 300) });
+        await admin.rpc("ai_decide_attempt", { p_id: id, p_action: "error", p_reason: "ai_error", p_summary: "Analyse IA indisponible, vérification humaine." });
       } catch { /* journalisation best effort */ }
-      results[id] = { error: message };
+      results[id] = { error: "ai_error" };
     }
   }
   return json({ ok: true, results });
