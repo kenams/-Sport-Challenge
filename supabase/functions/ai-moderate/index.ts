@@ -28,6 +28,8 @@ type Verdict = {
   invalid_reps: number;
   confidence: number;
   obvious_cheat: boolean;
+  unusable_video: boolean;
+  refilm_advice_fr: string;
   issues: string[];
   summary_fr: string;
 };
@@ -43,10 +45,12 @@ const VERDICT_SCHEMA = {
     invalid_reps: { type: "INTEGER", description: "Répétitions incomplètes ou non conformes." },
     confidence: { type: "NUMBER", description: "Certitude globale entre 0 et 1 sur le comptage." },
     obvious_cheat: { type: "BOOLEAN", description: "Triche manifeste : vidéo sans rapport, écran filmé, image fixe, autre personne." },
+    unusable_video: { type: "BOOLEAN", description: "Vidéo impossible à juger : cadrage, angle, corps hors champ, trop sombre ou trop courte." },
+    refilm_advice_fr: { type: "STRING", description: "Si la vidéo est inexploitable : consigne courte et concrète pour refilmer (angle, distance, durée). Sinon chaîne vide." },
     issues: { type: "ARRAY", items: { type: "STRING" } },
     summary_fr: { type: "STRING", description: "Une à deux phrases en français pour le joueur." },
   },
-  required: ["exercise_matches", "person_visible", "continuous_video", "framing_ok", "valid_reps", "invalid_reps", "confidence", "obvious_cheat", "issues", "summary_fr"],
+  required: ["exercise_matches", "person_visible", "continuous_video", "framing_ok", "valid_reps", "invalid_reps", "confidence", "obvious_cheat", "unusable_video", "refilm_advice_fr", "issues", "summary_fr"],
 };
 
 async function uploadToGemini(bytes: Uint8Array, mime: string): Promise<{ uri: string; name: string }> {
@@ -132,12 +136,25 @@ async function analyse(fileUri: string, mime: string, format: Record<string, unk
 
 export function decide(v: Verdict, declared: number, maxScore: number): { action: "validate" | "reject" | "needs_human"; score: number | null; reason: string } {
   const counted = Math.max(0, Math.min(Math.round(v.valid_reps), maxScore));
-  if (v.obvious_cheat || !v.exercise_matches || !v.person_visible) {
+  // 1. Triche manifeste : refus si l'IA est très sûre, sinon un humain tranche.
+  if (v.obvious_cheat) {
     return v.confidence >= REJECT_MIN_CONFIDENCE
       ? { action: "reject", score: null, reason: `Refusé par l'IA : ${v.summary_fr}` }
       : { action: "needs_human", score: null, reason: "Doute sur la vidéo : vérification humaine." };
   }
-  if (!v.continuous_video || !v.framing_ok || v.confidence < VALIDATE_MIN_CONFIDENCE) {
+  // 2. Vidéo inexploitable (cadrage, corps hors champ, trop courte) : refus immédiat avec la
+  //    consigne pour refilmer. Le joueur peut relancer un défi tout de suite.
+  if (v.unusable_video || !v.framing_ok || !v.person_visible) {
+    const advice = (v.refilm_advice_fr || v.summary_fr || "Refilme de profil, corps entier visible.").trim();
+    return { action: "reject", score: null, reason: `À refilmer : ${advice}` };
+  }
+  // 3. Mauvais exercice : refus si certain, sinon humain.
+  if (!v.exercise_matches) {
+    return v.confidence >= REJECT_MIN_CONFIDENCE
+      ? { action: "reject", score: null, reason: `Refusé par l'IA : ${v.summary_fr}` }
+      : { action: "needs_human", score: null, reason: "Doute sur l'exercice : vérification humaine." };
+  }
+  if (!v.continuous_video || v.confidence < VALIDATE_MIN_CONFIDENCE) {
     return { action: "needs_human", score: null, reason: "Comptage incertain : vérification humaine." };
   }
   // Jamais plus que le score déclaré par le joueur.

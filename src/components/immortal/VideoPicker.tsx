@@ -100,7 +100,7 @@ export default function VideoPicker({ value, onChange, maxSeconds, disabled, err
         <View style={{ gap: 10 }}>
           <VideoPlayer uri={value.uri} style={styles.preview} shouldPlay autoPlay={false} allowUserToggle nativeControls />
           <Text style={styles.fileInfo}>
-            {value.source==='guided'?`Capture guidée · séance ${value.sessionCode} · à vérifier`:'Vidéo importée · à vérifier'}{value.durationSeconds ? ` · ${Math.ceil(value.durationSeconds)} s` : ""}
+            {value.source==='guided'?`Capture guidée · séance ${value.sessionCode}${typeof value.liveReps==='number'?` · coach : ${value.liveReps} valides`:''} · à vérifier`:'Vidéo importée · à vérifier'}{value.durationSeconds ? ` · ${Math.ceil(value.durationSeconds)} s` : ""}
             {value.fileSize ? ` · ${sizeLabel(value.fileSize)}` : ""}
           </Text>
           <ActionButton label="Changer de vidéo" variant="ghost" onPress={() => onChange(null)} disabled={disabled} hint="Retire cette vidéo pour en choisir une autre" />
@@ -108,7 +108,7 @@ export default function VideoPicker({ value, onChange, maxSeconds, disabled, err
       ) : (
         <View style={styles.row}>
           <View style={{ flex: 1, minWidth: 150 }}>
-            <ActionButton label={Platform.OS==="web"?"Filmer avec les repères":"Filmer"} onPress={() => Platform.OS==="web"?setCapturing(true):pick("camera")} loading={busy} disabled={disabled} hint="Ouvre la caméra pour enregistrer ta performance" />
+            <ActionButton label={Platform.OS==="web"?"Filmer avec le coach":"Filmer"} onPress={() => Platform.OS==="web"?setCapturing(true):pick("camera")} loading={busy} disabled={disabled} hint="Ouvre la caméra pour enregistrer ta performance" />
           </View>
           <View style={{ flex: 1, minWidth: 150 }}>
             <ActionButton label="Choisir une vidéo" variant="ghost" onPress={() => pick("library")} disabled={disabled || busy} hint="Choisis une vidéo déjà enregistrée" />

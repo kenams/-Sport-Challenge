@@ -34,6 +34,19 @@ type Action = { kind: "report" | "withdraw"; attempt: Attempt } | null;
 
 function DecisionNote({ attempt }: { attempt: Attempt }) {
   const adjusted = attempt.status === "validated" && attempt.decided_score !== null && attempt.decided_score !== attempt.declared_score;
+  if (attempt.status === "pending") {
+    const text = attempt.ai_status === "needs_human"
+      ? "L'arbitre IA a un doute : un modérateur vérifie ta vidéo."
+      : attempt.ai_status === "error"
+        ? "Analyse automatique indisponible : un modérateur vérifie ta vidéo."
+        : "L'arbitre IA analyse ta vidéo, résultat en général en moins d'une minute.";
+    return (
+      <View style={[styles.note, styles.noteWarn]} accessible>
+        <Text style={styles.noteTitle}>Vérification en cours</Text>
+        <Text style={styles.noteText}>{text}</Text>
+      </View>
+    );
+  }
   if (!(attempt.status === "rejected" || adjusted)) return null;
   const reason = attempt.decision_reason?.trim();
   return (

@@ -9,6 +9,8 @@ export type VideoCandidate = {
   mimeType?: string | null;
   fileSize?: number | null;
   durationSeconds?: number | null;
+  /** Répétitions vues en direct par le coach de posture (indicatif, non officiel). */
+  liveReps?: number | null;
 };
 
 export type VideoCheck = { ok: true } | { ok: false; message: string };

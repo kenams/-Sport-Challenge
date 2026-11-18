@@ -97,3 +97,18 @@ drop trigger if exists attempts_queue_ai_moderation on public.attempts;
 create trigger attempts_queue_ai_moderation
   after insert on public.attempts
   for each row execute function public.queue_ai_moderation();
+
+-- Le journal accepte aussi les décisions de l'IA.
+alter table public.moderation_log drop constraint if exists moderation_log_action_check;
+alter table public.moderation_log add constraint moderation_log_action_check
+  check (action in ('validate', 'reject', 'restore', 'remove_video', 'restore_video', 'dismiss_reports', 'ai_validate', 'ai_reject'));
+
+-- Avis de l'IA visible dans le fil (joueur et modération).
+create or replace view public.attempt_feed with (security_invoker = true) as
+select a.id, a.user_id, a.kind, a.challenge_id, a.recipient_user_id, a.title, a.format_key, a.discipline,
+  a.rules_version, a.declared_score, a.video_path, a.video_duration_seconds, a.video_removed, a.status,
+  a.decided_score, a.decision_reason, a.decided_by, a.decided_at, a.city_declared, a.region_declared,
+  a.country_declared, a.report_count, a.created_at, p.pseudo, p.avatar_url,
+  a.ai_status, a.ai_score, a.ai_summary
+from public.attempts a
+left join public.profiles p on p.user_id = a.user_id;

@@ -106,6 +106,15 @@ export default function ModerationCard({ item, format, isOwn, onDecide }: Props)
         <Text style={styles.declaredValue}>{item.declared_score}</Text>
         {item.decided_score !== null ? <Text style={styles.muted}>Score retenu : {item.decided_score}</Text> : null}
       </View>
+      {item.ai_status && item.ai_status !== "queued" ? (
+        <View style={styles.ai} accessible>
+          <Text style={styles.aiTitle}>
+            Avis de l'arbitre IA{item.ai_status === "needs_human" ? " · doute, à toi de trancher" : item.ai_status === "error" ? " · analyse indisponible" : ""}
+            {typeof item.ai_score === "number" && item.ai_status !== "error" ? ` · ${item.ai_score} répétitions comptées` : ""}
+          </Text>
+          {item.ai_summary ? <Text style={styles.muted}>{item.ai_summary}</Text> : null}
+        </View>
+      ) : null}
       {item.video_removed ? <Text style={styles.warn}>Vidéo retirée. Elle reste consultable par la modération.</Text> : null}
       {isOwn ? <Text style={styles.warn}>C'est ta propre performance : tu ne peux pas en décider.</Text> : null}
 
@@ -180,6 +189,8 @@ export default function ModerationCard({ item, format, isOwn, onDecide }: Props)
 }
 
 const styles = StyleSheet.create({
+  ai: { padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "rgba(212,175,55,0.35)", backgroundColor: "rgba(212,175,55,0.06)", gap: 4 },
+  aiTitle: { color: COLORS.primary, fontSize: 12, fontWeight: "800" },
   card: { backgroundColor: COLORS.card, borderRadius: 18, borderWidth: 1, borderColor: COLORS.border, padding: 16, gap: 12 },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
   player: { color: COLORS.text, fontSize: 18, fontWeight: "900" },

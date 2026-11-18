@@ -185,7 +185,7 @@ export default function CreateChallengeScreen() {
             <Text style={formStyles.heading} accessibilityRole="header">
               Lancer un défi
             </Text>
-            <Text style={formStyles.lead}>Filme ta performance, déclare ton score. Une modération humaine la valide avant qu'elle compte.</Text>
+            <Text style={formStyles.lead}>Filme ta performance, déclare ton score. L'arbitre IA compte tes répétitions sur la vidéo, et un modérateur tranche en cas de doute.</Text>
           </View>
 
           <View style={formStyles.card}>

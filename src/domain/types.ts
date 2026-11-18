@@ -46,6 +46,10 @@ export interface Attempt {
   created_at: string;
   pseudo?: string | null;
   avatar_url?: string | null;
+  /** Avis de l'arbitre IA (null tant qu'il n'a pas analysé la vidéo). */
+  ai_status?: "queued" | "needs_human" | "decided" | "error" | null;
+  ai_score?: number | null;
+  ai_summary?: string | null;
 }
 
 export type TerritoryScope = "world" | "country" | "region" | "city";
